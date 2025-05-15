@@ -1,0 +1,23 @@
+FROM python:3.13-slim-bookworm as base
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=true
+ENV UV_LINK_MODE=copy
+
+WORKDIR /app
+
+RUN apt update && apt install -y \
+libffi-dev \
+libnacl-dev \
+python3-dev \
+&& rm -rf /var/lib/apt/lists/*
+
+FROM base as runtime
+WORKDIR /app
+
+COPY . /app
+
+RUN uv sync --locked
+
+CMD ["uv", "run", "bot"]
+

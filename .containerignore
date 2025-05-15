@@ -1,0 +1,54 @@
+# Exclude Python virtual environments
+.venv/
+env/
+ENV/
+venv/
+env.bak/
+venv.bak/
+
+# Exclude Python cache and test artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pytest_cache/
+
+# Exclude environment and secrets files
+.env
+.env.*
+*.env
+*.env.*
+
+# Exclude git and VCS
+.git
+.gitignore
+
+# Exclude build and dist artifacts
+build/
+dist/
+*.egg-info/
+# *.lock
+
+# Exclude Docker and container artifacts
+Docker/
+.containerignore
+
+# Exclude editor and IDE files
+*.swp
+*.swo
+*.idea/
+*.vscode/
+
+# Exclude Ruff and mypy caches
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.dmypy.json
+dmypy.json
+
+# Exclude project-specific files
+.pdm.toml
+.pdm-python
+.pdm-build/
+__pypackages__/
