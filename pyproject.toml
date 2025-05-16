@@ -5,10 +5,16 @@ description = "Discord bot for Dystopia Sunset"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "aiohttp>=3.11.18",
     "discord-py[voice]>=2.5.2",
     "dotenv>=0.9.9",
+    "nats-py>=2.10.0",
+    "redis>=6.1.0",
+    "sqlmodel>=0.0.24",
+    "surrealdb",
 ]
+
+[tool.uv.sources]
+surrealdb = { git = "https://github.com/surrealdb/surrealdb.py.git" }
 
 [project.scripts]
 bot = "ds_discord_bot:main"
