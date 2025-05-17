@@ -4,7 +4,7 @@ from discord.ext import commands
 from surrealdb import AsyncSurreal
 
 
-class General(commands.Cog):
+class Player(commands.Cog):
     def __init__(self, bot: commands.Bot, db_game: AsyncSurreal):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.bot: commands.Bot = bot
@@ -12,9 +12,9 @@ class General(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.logger.info("General cog loaded")
+        self.logger.info("Player cog loaded")
 
 
 async def setup(bot: commands.Bot) -> None:
-    bot.logger.info("Loading general cog...")
-    await bot.add_cog(General(bot=bot, db_game=bot.db_game))
+    bot.logger.info("Loading Player cog...")
+    await bot.add_cog(Player(bot=bot, db_game=bot.db_game))

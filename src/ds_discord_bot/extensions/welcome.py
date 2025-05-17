@@ -1,9 +1,11 @@
 import logging
-from discord.ext import commands
+
 from discord import Member
-from surrealdb import AsyncSurreal, RecordID
-from datetime import datetime, timezone
-from ds_common.models.discord_user import DiscordUser
+from discord.ext import commands
+from surrealdb import AsyncSurreal
+
+from ds_common.models.player import Player
+
 
 class Welcome(commands.Cog):
     def __init__(self, bot: commands.Bot, db_game: AsyncSurreal):
@@ -21,10 +23,18 @@ class Welcome(commands.Cog):
         self.logger.info("Member joined: %s", member)
         await self.sync_user(member)
 
+        if not member.dm_channel:
+            await member.create_dm()
+
+        await member.dm_channel.send(
+            "Welcome to the Quillian Undercity!\n\nI will be your assistant. Type `!help` for help."
+        )
+
     @commands.Cog.listener()
     async def on_member_remove(self, member: Member):
         self.logger.info("Member left: %s", member)
         await self.sync_user(member, is_active=False)
+        await member.dm_channel.send("Goodbye! We hope to see you again.")
 
     async def sync_users(self):
         self.logger.info("Syncing users...")
@@ -40,26 +50,15 @@ class Welcome(commands.Cog):
         )
 
     async def sync_user(self, user: Member, is_active: bool = True):
-        now = datetime.now(tz=timezone.utc)
-        db_user = DiscordUser(
-            id=user.id,
-            global_name=user.global_name,
-            display_name=user.display_name,
-            display_avatar=user.display_avatar.url,
-            joined_at=now,
-            last_active=now,
-            is_active=is_active,
-        )
+        db_user = Player.from_member(user, is_active)
 
-        result = await self.db_game.upsert(
-            RecordID("player", user.id),
-            db_user.model_dump(),
-        )
-
-        if not result:
-            self.logger.error(f"Failed to sync user {user}:{user.id}")
+        if not await Player.from_db(self.db_game, user.id):
+            await db_user.upsert(self.db_game)
         else:
-            self.logger.info(f"Synced user {user}:{result}")
+            await db_user.update_last_active(self.db_game)
+
+        self.logger.info(f"Synced user {user}:{user.id}")
+
 
 async def setup(bot: commands.Bot) -> None:
     bot.logger.info("Loading welcome cog...")

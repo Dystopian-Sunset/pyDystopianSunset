@@ -1,15 +1,14 @@
-import os
+import asyncio
 import logging
 import logging.handlers
-import discord
-import asyncio
-from dotenv import load_dotenv
+import os
 
+import discord
+from dotenv import load_dotenv
 from surrealdb import AsyncSurreal
 
 from .bot import DSBot
 from .extensions import Extension
-
 
 load_dotenv()
 
@@ -54,7 +53,7 @@ async def _async_main() -> None:
             Extension.GENERAL,
             Extension.MODERATION,
             Extension.WELCOME,
-            Extension.DISCORD_USER,
+            Extension.PLAYER,
             Extension.CHARACTER,
         ]
 
