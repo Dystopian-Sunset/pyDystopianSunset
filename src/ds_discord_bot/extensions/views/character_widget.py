@@ -26,8 +26,8 @@ class CharacterWidget(Embed):
         super().__init__(color=Color.dark_blue() if is_active else Color.greyple())
 
         heading = f"{character.name} | lvl {character.level} | {character_class.name} | [N/A]" + (" (⭐)" if is_active else "")
-        vitals = f"Health: {character.stats['HP'] if "HP" in character.stats else 0}\nEnergy: {character.stats['ENG'] if "ENG" in character.stats else 0}"
-        stats = f"STR: {character.stats['STR'] if "STR" in character.stats else 0}\nDEX: {character.stats['DEX'] if "DEX" in character.stats else 0}\nINT: {character.stats['INT'] if "INT" in character.stats else 0}\nCHA: {character.stats['CHA'] if "CHA" in character.stats else 0}\nPER: {character.stats['PER'] if "PER" in character.stats else 0}\nLUK: {character.stats['LUK'] if "LUK" in character.stats else 0}"
+        vitals = f"Health: {character.stats['HP'] if 'HP' in character.stats else 0}\nEnergy: {character.stats['ENG'] if 'ENG' in character.stats else 0}\nExp: {character.exp}"
+        stats = f"STR: {character.stats['STR'] if 'STR' in character.stats else 0}, DEX: {character.stats['DEX'] if 'DEX' in character.stats else 0}, INT: {character.stats['INT'] if 'INT' in character.stats else 0}\nCHA: {character.stats['CHA'] if 'CHA' in character.stats else 0}, PER: {character.stats['PER'] if 'PER' in character.stats else 0}, LUK: {character.stats['LUK'] if 'LUK' in character.stats else 0}"
         fame = f"Renown: {character.renown}\nShadow Level: {character.shadow_level}"
         self.set_author(name=heading, icon_url="")
         self.add_field(name="Vitals", value=vitals, inline=True)

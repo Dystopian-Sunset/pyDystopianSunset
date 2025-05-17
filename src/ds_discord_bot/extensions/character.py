@@ -112,15 +112,21 @@ class Character(commands.Cog):
             )
         else:
             active_character = await player.get_active_character(self.db_game)
+
+            embeds = []
             for character in characters:
                 character_class = await character.character_class(self.db_game)
-                await interaction.response.send_message(
-                    embed=CharacterWidget(
+                embeds.append(
+                    CharacterWidget(
                         character=character,
                         character_class=character_class,
                         is_active=character.id == active_character.id,
                     )
                 )
+
+            await interaction.response.send_message(
+                embeds=embeds,
+            )
 
     @character.command(name="describe", description="Get information about a character")
     @app_commands.describe(name="The name of the character to describe")

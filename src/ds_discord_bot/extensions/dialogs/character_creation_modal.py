@@ -33,7 +33,7 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
             character = Character(
                 name=self.character_name.value,
                 level=1,
-                experience=0,
+                exp=0,
                 stats={
                     "STR": random.randint(1, 20),
                     "DEX": random.randint(1, 20),

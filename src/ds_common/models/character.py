@@ -18,6 +18,7 @@ class Character(BaseModel):
     )
     name: str
     level: int
+    exp: int
     stats: dict[str, int]
     effects: dict[str, int]
     renown: int
