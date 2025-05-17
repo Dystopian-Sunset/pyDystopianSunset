@@ -10,6 +10,7 @@ from ds_common.models.player import Player
 from ds_discord_bot.extensions.views.character_class_selection import (
     CharacterClassSelectionView,
 )
+from ds_discord_bot.extensions.views.character_widget import CharacterWidget
 
 
 class Character(commands.Cog):
@@ -46,10 +47,8 @@ class Character(commands.Cog):
         if not interaction.user.dm_channel:
             await interaction.user.create_dm()
 
-        if (
-            len(await player.get_characters(self.db_game))
-            >= self.bot.game_settings.max_characters_per_player
-        ):
+        characters = await player.get_characters(self.db_game)
+        if len(characters) >= self.bot.game_settings.max_characters_per_player:
             await interaction.response.send_message(
                 "You have reached the maximum number of characters. Delete an existing character before trying to create a new one. Use `/character delete` to delete a character.",
                 ephemeral=True,
@@ -112,10 +111,16 @@ class Character(commands.Cog):
                 ephemeral=True,
             )
         else:
-            character_string = "Characters:\n"
+            active_character = await player.get_active_character(self.db_game)
             for character in characters:
-                character_string += f"- {character.name} - {character.id}\n"
-            await interaction.response.send_message(character_string)
+                character_class = await character.character_class(self.db_game)
+                await interaction.response.send_message(
+                    embed=CharacterWidget(
+                        character=character,
+                        character_class=character_class,
+                        is_active=character.id == active_character.id,
+                    )
+                )
 
     @character.command(name="describe", description="Get information about a character")
     @app_commands.describe(name="The name of the character to describe")
@@ -149,8 +154,13 @@ class Character(commands.Cog):
         player = Player.from_member(interaction.user)
         active_character = await player.get_active_character(self.db_game)
         if active_character:
+            character_class = await active_character.character_class(self.db_game)
             await interaction.response.send_message(
-                f"You are currently playing as {active_character.name}"
+                embed=CharacterWidget(
+                    character=active_character,
+                    character_class=character_class,
+                    is_active=True,
+                )
             )
         else:
             characters = await player.get_characters(self.db_game)

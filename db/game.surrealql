@@ -14,19 +14,27 @@ DEFINE TABLE IF NOT EXISTS game_settings SCHEMALESS TYPE NORMAL;
 -- Player Table
 DEFINE TABLE IF NOT EXISTS player SCHEMAFULL TYPE NORMAL;
 
-DEFINE FIELD IF NOT EXISTS global_name ON player TYPE string;
-DEFINE FIELD IF NOT EXISTS display_name ON player TYPE string;
-DEFINE FIELD IF NOT EXISTS display_avatar ON player TYPE string;
-DEFINE FIELD IF NOT EXISTS joined_at ON player TYPE datetime;
-DEFINE FIELD IF NOT EXISTS last_active ON player TYPE datetime;
-DEFINE FIELD IF NOT EXISTS is_active ON player TYPE bool;
+DEFINE FIELD IF NOT EXISTS global_name ON player TYPE string COMMENT "Discord player global name";
+DEFINE FIELD IF NOT EXISTS display_name ON player TYPE string COMMENT "Discord player display name";
+DEFINE FIELD IF NOT EXISTS display_avatar ON player TYPE string COMMENT "Discord player display avatar URL";
+DEFINE FIELD IF NOT EXISTS joined_at ON player TYPE datetime COMMENT "Player joined at";
+DEFINE FIELD IF NOT EXISTS last_active ON player TYPE datetime COMMENT "Player last active";
+DEFINE FIELD IF NOT EXISTS is_active ON player TYPE bool COMMENT "Player is active";
 
 -- Character Table
 DEFINE TABLE IF NOT EXISTS character SCHEMAFULL TYPE NORMAL;
 
-DEFINE FIELD IF NOT EXISTS name ON character TYPE string;
-DEFINE FIELD IF NOT EXISTS created_at ON character TYPE datetime;
-DEFINE FIELD IF NOT EXISTS last_active ON character TYPE datetime;
+DEFINE FIELD IF NOT EXISTS name ON character TYPE string COMMENT "Character name";
+DEFINE FIELD IF NOT EXISTS level ON character TYPE int DEFAULT 1 COMMENT "Character level";
+DEFINE FIELD IF NOT EXISTS experience ON character TYPE int DEFAULT 0 COMMENT "Character experience";
+DEFINE FIELD OVERWRITE stats ON character FLEXIBLE TYPE object COMMENT "Character stats";
+DEFINE FIELD OVERWRITE effects ON character FLEXIBLE TYPE object COMMENT "Effects are temporary modifiers to stats";
+DEFINE FIELD OVERWRITE renown ON character TYPE int COMMENT "Character renown";
+DEFINE FIELD OVERWRITE shadow_level ON character TYPE int COMMENT "Character shadow level";
+DEFINE FIELD IF NOT EXISTS created_at ON character TYPE datetime COMMENT "Character created at";
+DEFINE FIELD IF NOT EXISTS last_active ON character TYPE datetime COMMENT "Character last active";
+
+DEFINE INDEX IF NOT EXISTS idx_character_name ON TABLE character FIELDS name UNIQUE COMMENT "Character name index";
 
 -- Relationship between Player and Character
 DEFINE TABLE IF NOT EXISTS has_character TYPE RELATION FROM player TO character ENFORCED;
@@ -35,9 +43,9 @@ DEFINE TABLE OVERWRITE is_playing_as TYPE RELATION FROM player TO character;
 -- Character Class Table
 DEFINE TABLE OVERWRITE character_class SCHEMAFULL PERMISSIONS FOR create, update, delete WHERE $auth.admin = true TYPE NORMAL;
 
-DEFINE FIELD IF NOT EXISTS name ON character_class TYPE string;
-DEFINE FIELD IF NOT EXISTS description ON character_class TYPE string;
-DEFINE FIELD IF NOT EXISTS emoji ON character_class TYPE string;
+DEFINE FIELD IF NOT EXISTS name ON character_class TYPE string COMMENT "Character class name";
+DEFINE FIELD IF NOT EXISTS description ON character_class TYPE string COMMENT "Character class description";
+DEFINE FIELD IF NOT EXISTS emoji ON character_class TYPE string COMMENT "Character class emoji";
 
 -- Character Classes
 INSERT IGNORE INTO character_class {id: 1, name: "Enforcer", description: "A physically imposing character who handles the physical aspects of maintaining order within the organization. This character could be designed with a robust, tank-like build and might feature visible cybernetic enhancements that augment their strength and durability.", emoji: "🛡️"};
@@ -52,13 +60,13 @@ DEFINE TABLE OVERWRITE has_class TYPE RELATION FROM character TO character_class
 -- Character Stats Table
 DEFINE TABLE OVERWRITE character_stats SCHEMAFULL PERMISSIONS FOR create, update, delete WHERE $auth.admin = true TYPE NORMAL;
 
-DEFINE FIELD IF NOT EXISTS name ON character_stats TYPE string;
-DEFINE FIELD IF NOT EXISTS abbr ON character_stats TYPE string;
-DEFINE FIELD IF NOT EXISTS description ON character_stats TYPE string;
-DEFINE FIELD IF NOT EXISTS emoji ON character_stats TYPE string;
-DEFINE FIELD IF NOT EXISTS max_value ON character_stats TYPE int;
-DEFINE FIELD IF NOT EXISTS is_primary ON character_stats TYPE bool;
-DEFINE FIELD IF NOT EXISTS is_mutable ON character_stats TYPE bool;
+DEFINE FIELD IF NOT EXISTS name ON character_stats TYPE string COMMENT "Character stat name";
+DEFINE FIELD IF NOT EXISTS abbr ON character_stats TYPE string COMMENT "Character stat abbreviation";
+DEFINE FIELD IF NOT EXISTS description ON character_stats TYPE string COMMENT "Character stat description";
+DEFINE FIELD IF NOT EXISTS emoji ON character_stats TYPE string COMMENT "Character stat emoji";
+DEFINE FIELD IF NOT EXISTS max_value ON character_stats TYPE int COMMENT "Character stat maximum value";
+DEFINE FIELD IF NOT EXISTS is_primary ON character_stats TYPE bool COMMENT "Character stat is primary";
+DEFINE FIELD IF NOT EXISTS is_mutable ON character_stats TYPE bool COMMENT "Character stat is mutable";
 
 -- Character Stats
 INSERT IGNORE INTO character_stats { id: 1, name: "Strength", abbr: "STR", description: "This measures the physical power of a character. It is essential for characters like the Enforcer, who rely on melee strength to overpower foes.", emoji: "💪", max_value: 100, is_primary: true, is_mutable: true};

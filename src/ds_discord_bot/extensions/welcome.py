@@ -2,7 +2,7 @@ import logging
 
 from discord import Member
 from discord.ext import commands
-from surrealdb import AsyncSurreal
+from surrealdb import AsyncSurreal, RecordID
 
 from ds_common.models.player import Player
 
@@ -52,7 +52,7 @@ class Welcome(commands.Cog):
     async def sync_user(self, user: Member, is_active: bool = True):
         db_user = Player.from_member(user, is_active)
 
-        if not await Player.from_db(self.db_game, user.id):
+        if not await Player.from_db(self.db_game, RecordID("player", user.id)):
             await db_user.upsert(self.db_game)
         else:
             await db_user.update_last_active(self.db_game)

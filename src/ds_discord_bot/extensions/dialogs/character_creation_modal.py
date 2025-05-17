@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timezone
 from typing import override
 
@@ -31,6 +32,19 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
             )
             character = Character(
                 name=self.character_name.value,
+                level=1,
+                experience=0,
+                stats={
+                    "STR": random.randint(1, 20),
+                    "DEX": random.randint(1, 20),
+                    "INT": random.randint(1, 20),
+                    "CHA": random.randint(1, 20),
+                    "PER": random.randint(1, 20),
+                    "LUK": random.randint(1, 20),
+                },
+                effects={},
+                renown=0,
+                shadow_level=0,
                 created_at=datetime.now(timezone.utc),
                 last_active=datetime.now(timezone.utc),
             )

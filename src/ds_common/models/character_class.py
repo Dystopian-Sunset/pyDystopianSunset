@@ -1,24 +1,22 @@
 import asyncio
 
-from sqlmodel import Field, SQLModel
+from pydantic import BaseModel, ConfigDict, Field
 from surrealdb import AsyncSurreal, RecordID
 
 from ds_common.models.character_stat import CharacterStat
 
 
-class CharacterClass(SQLModel, table=True):
-    id: int = Field(primary_key=True)
+class CharacterClass(BaseModel):
+    id: RecordID = Field(primary_key=True)
     name: str
     description: str
     emoji: str
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     @classmethod
-    async def from_db(
-        cls, db: AsyncSurreal, id: int | str | RecordID
-    ) -> "CharacterClass":
-        if isinstance(id, int):
-            id = RecordID("character_class", id)
-        elif isinstance(id, str) and "character_class:" in id:
+    async def from_db(cls, db: AsyncSurreal, id: str | RecordID) -> "CharacterClass":
+        if isinstance(id, str) and id.startswith("character_class:"):
             id = RecordID("character_class", int(id.split(":")[1]))
 
         result = await db.select(id)

@@ -2,6 +2,7 @@ import asyncio
 import logging
 import logging.handlers
 import os
+import random
 
 import discord
 from dotenv import load_dotenv
@@ -11,7 +12,7 @@ from .bot import DSBot
 from .extensions import Extension
 
 load_dotenv()
-
+random.seed()
 
 async def _async_main() -> None:
     discord_logger = logging.getLogger("discord")

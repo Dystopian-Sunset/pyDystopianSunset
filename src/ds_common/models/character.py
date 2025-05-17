@@ -2,29 +2,37 @@ import random
 import string
 from datetime import datetime
 
-from sqlmodel import Field, SQLModel
+from pydantic import BaseModel, ConfigDict, Field
 from surrealdb import AsyncSurreal, RecordID
 
 from ds_common.models.character_class import CharacterClass
 
 
-class Character(SQLModel, table=True):
-    id: str = Field(
+class Character(BaseModel):
+    id: RecordID = Field(
         primary_key=True,
-        default_factory=lambda: "".join(
-            random.choices(string.ascii_letters + string.digits, k=20)
+        default_factory=lambda: RecordID(
+            "character",
+            "".join(random.choices(string.ascii_letters + string.digits, k=20)),
         ),
     )
     name: str
+    level: int
+    stats: dict[str, int]
+    effects: dict[str, int]
+    renown: int
+    shadow_level: int
     created_at: datetime
     last_active: datetime
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     @classmethod
-    async def from_db(cls, db: AsyncSurreal, id: int | str | RecordID) -> "Character":
-        if isinstance(id, int):
-            return cls(**await db.select(RecordID("character", id)))
-        elif isinstance(id, str) or isinstance(id, RecordID):
-            return cls(**await db.select(id))
+    async def from_db(cls, db: AsyncSurreal, id: str | RecordID) -> "Character":
+        if isinstance(id, str) and id.startswith("character:"):
+            id = RecordID("character", int(id.split(":")[1]))
+
+        return cls(**await db.select(id))
 
     async def insert(self, db: AsyncSurreal) -> None:
         await db.insert(
@@ -45,14 +53,14 @@ class Character(SQLModel, table=True):
         )
 
     async def character_class(self, db: AsyncSurreal) -> CharacterClass:
-        query = f"SELECT ->has_class->(?).* AS character_class FROM character:{self.id} LIMIT 1"
+        query = f"SELECT ->has_class->(?).* AS character_class FROM {self.id} LIMIT 1"
         result = await db.query(query)
-        if not result:
+        if not result or not result[0]["character_class"]:
             return None
-        return CharacterClass(**result[0]["character_class"])
+        return CharacterClass(**result[0]["character_class"][0])
 
     async def set_class(
         self, db: AsyncSurreal, character_class: CharacterClass
     ) -> None:
-        query = f"RELATE character:{self.id}->has_class->{character_class.id}"
+        query = f"RELATE {self.id}->has_class->{character_class.id}"
         await db.query(query)
