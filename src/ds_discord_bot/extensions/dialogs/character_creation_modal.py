@@ -22,28 +22,51 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
 
     @override
     async def on_submit(self, interaction: Interaction) -> None:
-        character_class = await CharacterClass.from_db(
-            db=self.db, id=self.character_class_id
-        )
-        character = Character(
-            name=self.character_name.value,
-            created_at=datetime.now(timezone.utc),
-            last_active=datetime.now(timezone.utc),
-        )
+        try:
+            # Defer the response first to prevent interaction timeout
+            await interaction.response.defer(ephemeral=True, thinking=True)
 
-        print(character)
-        print(character_class)
+            character_class = await CharacterClass.from_db(
+                db=self.db, id=self.character_class_id
+            )
+            character = Character(
+                name=self.character_name.value,
+                created_at=datetime.now(timezone.utc),
+                last_active=datetime.now(timezone.utc),
+            )
 
-        player = Player.from_member(interaction.user)
+            player = Player.from_member(interaction.user)
 
-        print(player)
+            await character.insert(self.db)
+            await character.set_class(self.db, character_class)
+            await player.relate_character(self.db, character)
 
-        await character.insert(self.db)
+            if await player.get_active_character(self.db) is None:
+                await player.set_active_character(self.db, character)
 
-        print("Inserted character")
+            # Use followup.send instead of response.send_message since we deferred
+            await interaction.followup.send(
+                f"Character {character.name} created successfully!", ephemeral=True
+            )
 
-        await character.set_class(self.db, character_class)
-        await player.relate_character(self.db, character)
+        except Exception as e:
+            # Log the error
+            interaction.client.logger.error(
+                f"Error in character creation: {str(e)}", exc_info=True
+            )
 
-        if await player.get_active_character(self.db) is None:
-            await player.set_active_character(self.db, character)
+            # Send error message to user
+            if interaction.response.is_done():
+                await interaction.followup.send(
+                    "An error occurred while creating your character. Please try again later.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    "An error occurred while creating your character. Please try again later.",
+                    ephemeral=True,
+                )
+
+            # Remove the character if it was created
+            if character:
+                await character.delete(self.db)

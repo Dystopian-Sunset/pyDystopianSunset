@@ -1,7 +1,7 @@
 import logging
 
 import discord
-from discord import TextChannel
+from discord import TextChannel, app_commands
 from discord.ext import commands
 from surrealdb import AsyncSurreal
 
@@ -34,81 +34,102 @@ class Character(commands.Cog):
 
         self.logger.info("Character cog loaded")
 
-    @commands.group()
-    async def character(self, ctx: commands.Context):
-        """
-        Character commands
-        """
-        if not ctx.author.dm_channel:
-            await ctx.author.create_dm()
+    character = app_commands.Group(name="character", description="Character commands")
 
-        if ctx.invoked_subcommand is None:
-            await ctx.author.dm_channel.send(
-                "Invalid subcommand. Use `!character <subcommand>`"
-            )
-
-    @character.command(name="create")
-    async def create_character(self, ctx: commands.Context):
+    @character.command(name="create", description="Create a new character to play as")
+    async def create_character(self, interaction: discord.Interaction):
         """
         Create a new character
         """
-        player = Player.from_member(ctx.author)
+        player = Player.from_member(interaction.user)
+
+        if not interaction.user.dm_channel:
+            await interaction.user.create_dm()
+
         if (
             len(await player.get_characters(self.db_game))
             >= self.bot.game_settings.max_characters_per_player
         ):
-            await ctx.author.dm_channel.send(
-                "You have reached the maximum number of characters. Delete an existing character before trying to create a new one."
+            await interaction.response.send_message(
+                "You have reached the maximum number of characters. Delete an existing character before trying to create a new one. Use `/character delete` to delete a character.",
+                ephemeral=True,
             )
             return
 
         embed = discord.Embed(
             title="Character Creation",
             description="To begin character creation, select a character class. Your characters class will determine their core stats and abilities. As you progress through the game, you will be able to upgrade your character's stats and abilities.",
-            color=discord.Color.dark_green(),
+            color=discord.Color.orange(),
         )
+
         view = CharacterClassSelectionView(
             db=self.db_game,
             character_classes=await CharacterClass.get_all(self.db_game),
         )
 
-        await ctx.author.dm_channel.send(embed=embed, view=view)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        await interaction.followup.send(embed=embed, view=view)
 
-    @character.command(name="delete")
-    async def delete_character(self, ctx: commands.Context, name: str):
+    @character.command(name="delete", description="Delete a character")
+    @app_commands.describe(name="The name of the character to delete")
+    async def delete_character(self, interaction: discord.Interaction, name: str):
         """
         Delete a character
         """
-        self.logger.info("Character deleted: %s", ctx.author)
+        player = Player.from_member(interaction.user)
+        characters = await player.get_characters(self.db_game)
 
-    @character.command(name="list")
-    async def list_characters(self, ctx: commands.Context):
+        if not characters:
+            await interaction.response.send_message(
+                "You have no characters. Create one with `/character create`",
+                ephemeral=True,
+            )
+        else:
+            for character in characters:
+                if character.name.lower() == name.lower():
+                    await character.delete(self.db_game)
+                    await interaction.response.send_message(
+                        f"Character {name} deleted successfully!", ephemeral=True
+                    )
+                    return
+
+            await interaction.response.send_message(
+                f"Character {name} not found.", ephemeral=True
+            )
+
+    @character.command(name="list", description="List all characters")
+    async def list_characters(self, interaction: discord.Interaction):
         """
         List all characters
         """
-        self.logger.info("Character list: %s", ctx.author)
+        self.logger.info("Character list: %s", interaction.user)
 
-        player = Player.from_member(ctx.author)
+        player = Player.from_member(interaction.user)
         characters = await player.get_characters(self.db_game)
         if not characters:
-            await ctx.author.dm_channel.send(
-                "You have no characters. Create one with `!character create`"
+            await interaction.response.send_message(
+                "You have no characters. Create one with `/character create`",
+                ephemeral=True,
             )
         else:
             character_string = "Characters:\n"
             for character in characters:
                 character_string += f"- {character.name} - {character.id}\n"
-            await ctx.author.dm_channel.send(character_string)
+            await interaction.response.send_message(character_string)
 
-    @character.command(name="describe")
-    async def describe_character(self, ctx: commands.Context, name: str):
+    @character.command(name="describe", description="Get information about a character")
+    @app_commands.describe(name="The name of the character to describe")
+    async def describe_character(self, interaction: discord.Interaction, name: str):
         """
         Get information about a character
         """
-        self.logger.info("Character info: %s", ctx.author)
+        self.logger.info("Character info: %s", interaction.user)
 
-    @character.command(name="use")
-    async def use_character(self, ctx: commands.Context, name: str | None = None):
+    @character.command(name="use", description="Use a character")
+    @app_commands.describe(name="The name of the character to use")
+    async def use_character(
+        self, interaction: discord.Interaction, name: str | None = None
+    ):
         """
         Use a character
         """
@@ -116,23 +137,33 @@ class Character(commands.Cog):
             # TODO: Select active character using selection view
             return
 
-        await ctx.author.dm_channel.send(
+        await interaction.response.send_message(
             f"Character {name} selected, you are now playing as {name}"
         )
 
-    @character.command(name="current")
-    async def current_character(self, ctx: commands.Context):
+    @character.command(name="current", description="Get the current character")
+    async def current_character(self, interaction: discord.Interaction):
         """
         Get the current character
         """
-        player = Player.from_member(ctx.author)
+        player = Player.from_member(interaction.user)
         active_character = await player.get_active_character(self.db_game)
         if active_character:
-            await ctx.author.dm_channel.send(
+            await interaction.response.send_message(
                 f"You are currently playing as {active_character.name}"
             )
         else:
-            await ctx.author.dm_channel.send("You are not playing as any character")
+            characters = await player.get_characters(self.db_game)
+            if not characters:
+                await interaction.response.send_message(
+                    "You have no characters. Create one with `/character create`",
+                    ephemeral=True,
+                )
+            else:
+                await player.set_active_character(self.db_game, characters[0])
+                await interaction.response.send_message(
+                    f"You are now playing as {characters[0].name}"
+                )
 
 
 async def setup(bot: commands.Bot) -> None:

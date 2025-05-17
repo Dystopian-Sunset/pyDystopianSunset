@@ -72,9 +72,7 @@ class Player(SQLModel, table=True):
         )
         result = await db.query(query)
 
-        print(result)
-
-        if not result:
+        if not result or not result[0]["character"]:
             return None
 
         return Character(**result[0]["character"][0])

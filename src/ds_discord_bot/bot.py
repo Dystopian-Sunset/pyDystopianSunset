@@ -1,15 +1,17 @@
 import logging
 import traceback
 from typing import override
-from discord import TextChannel
+
+from discord import Activity, ActivityType, TextChannel
 from discord.ext import commands
 from surrealdb import AsyncSurreal
 
-from .extensions import Extension
 from ds_common.models.game_settings import GameSettings
 
+from .extensions import Extension
 
-class DSBot(commands.AutoShardedBot):
+
+class DSBot(commands.Bot):
     def __init__(
         self,
         *args,
@@ -25,7 +27,11 @@ class DSBot(commands.AutoShardedBot):
         self.channel_bot_logs: TextChannel | None = None
         self.channel_moderation_logs: TextChannel | None = None
 
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            *args,
+            activity=Activity(type=ActivityType.playing, name="in the shadows"),
+            **kwargs,
+        )
 
     @override
     async def setup_hook(self) -> None:
@@ -114,3 +120,4 @@ class DSBot(commands.AutoShardedBot):
         self.logger.info("Bot is ready!")
 
         # await self.log("INFO", "Bot is ready!")
+        await self.tree.sync()

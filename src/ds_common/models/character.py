@@ -32,15 +32,21 @@ class Character(SQLModel, table=True):
             self.model_dump(),
         )
 
+    async def delete(self, db: AsyncSurreal) -> None:
+        try:
+            await db.delete(self.id)
+        except Exception as e:
+            print(e)
+
     async def update(self, db: AsyncSurreal) -> None:
         await db.update(
-            RecordID("character", self.id),
+            self.id,
             self.model_dump(),
         )
 
-    async def character_class(self) -> CharacterClass:
+    async def character_class(self, db: AsyncSurreal) -> CharacterClass:
         query = f"SELECT ->has_class->(?).* AS character_class FROM character:{self.id} LIMIT 1"
-        result = await self.db.query(query)
+        result = await db.query(query)
         if not result:
             return None
         return CharacterClass(**result[0]["character_class"])

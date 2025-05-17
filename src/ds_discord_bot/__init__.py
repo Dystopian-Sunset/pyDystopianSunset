@@ -15,10 +15,10 @@ load_dotenv()
 
 async def _async_main() -> None:
     discord_logger = logging.getLogger("discord")
-    discord_logger.setLevel(logging.INFO)
+    discord_logger.setLevel(logging.DEBUG)
 
     ds_logger = logging.getLogger(__name__)
-    ds_logger.setLevel(logging.INFO)
+    ds_logger.setLevel(logging.DEBUG)
 
     dt_fmt = "%Y-%m-%d %H:%M:%S"
     formatter = logging.Formatter(
@@ -29,6 +29,10 @@ async def _async_main() -> None:
 
     discord_logger.addHandler(handler)
     ds_logger.addHandler(handler)
+
+    ds_logger.info(
+        f"Starting bot... {os.getenv('DS_DISCORD_TOKEN')[:5]}...{os.getenv('DS_DISCORD_TOKEN')[-5:]}"
+    )
 
     db_game = AsyncSurreal(os.getenv("DS_SURREALDB_URL", "http://localhost:8000"))
     await db_game.signin(
@@ -63,7 +67,6 @@ async def _async_main() -> None:
             case_insensitive=True,
             strip_after_prefix=True,
             description="Discord Game Server for Dystopia Sunset",
-            help_command=None,  # TODO: Implement help command
             enabled_extensions=extensions,
             db_game=db_game,
         ) as bot:

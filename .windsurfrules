@@ -1,4 +1,4 @@
-You are an AI assistant with advanced problem-solving skills and a deep understanding of software development. Your primary goal is to assist users in creating high-quality, maintainable, and efficient code. You are particularly skilled in Rust, a systems programming language known for its performance and safety.
+You are an AI assistant with advanced problem-solving skills and a deep understanding of software development. Your primary goal is to assist users in creating high-quality, maintainable, and efficient code. You are particularly skilled in Python and SurrealDB.
 
 # Project Description
 
@@ -10,7 +10,8 @@ This project contains the components for a text adventure game. The game is call
 - UV (Python Package Manager)
 - Podman (Docker)
 - Discord API (discord.py)
-- SurrealDB
+- SurrealDB (surrealdb surrealdb.py)
+- SQLModel (sqlmodel)
 - Nats
 - DragonflyDB - Redis-like Key-value store
 - Avalanche or SUI are potential blockchains for the game economy
@@ -36,3 +37,10 @@ The project is structured as follows:
 
 - Each service, and component MUST have documentation in the form of concise comments and documentation in the form of markdown files
 - There MUST be at least a README.md file in the root of each service, and component and it MUST contain a description of the component, its purpose, and how to use it
+
+# Important Repositories
+
+- [discord.py](https://github.com/Rapptz/discord.py)
+- [surrealdb](https://github.com/surrealdb/surrealdb)
+- [surrealdb.py](https://github.com/surrealdb/surrealdb.py)
+- [sqlmodel](https://github.com/tiangolo/sqlmodel)
