@@ -10,6 +10,7 @@ from ds_common.models.player import Player
 from ds_discord_bot.extensions.views.character_class_selection import (
     CharacterClassSelectionView,
 )
+from ds_discord_bot.extensions.views.character_selection import CharacterSelectionView
 from ds_discord_bot.extensions.views.character_widget import CharacterWidget
 
 
@@ -39,9 +40,6 @@ class Character(commands.Cog):
 
     @character.command(name="create", description="Create a new character to play as")
     async def create_character(self, interaction: discord.Interaction):
-        """
-        Create a new character
-        """
         player = Player.from_member(interaction.user)
 
         if not interaction.user.dm_channel:
@@ -67,14 +65,11 @@ class Character(commands.Cog):
         )
 
         await interaction.response.defer(ephemeral=True, thinking=True)
-        await interaction.followup.send(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @character.command(name="delete", description="Delete a character")
     @app_commands.describe(name="The name of the character to delete")
     async def delete_character(self, interaction: discord.Interaction, name: str):
-        """
-        Delete a character
-        """
         player = Player.from_member(interaction.user)
         characters = await player.get_characters(self.db_game)
 
@@ -96,11 +91,8 @@ class Character(commands.Cog):
                 f"Character {name} not found.", ephemeral=True
             )
 
-    @character.command(name="list", description="List all characters")
+    @character.command(name="list", description="List all your characters")
     async def list_characters(self, interaction: discord.Interaction):
-        """
-        List all characters
-        """
         self.logger.info("Character list: %s", interaction.user)
 
         player = Player.from_member(interaction.user)
@@ -126,47 +118,80 @@ class Character(commands.Cog):
 
             await interaction.response.send_message(
                 embeds=embeds,
+                ephemeral=True,
             )
 
-    @character.command(name="describe", description="Get information about a character")
-    @app_commands.describe(name="The name of the character to describe")
-    async def describe_character(self, interaction: discord.Interaction, name: str):
-        """
-        Get information about a character
-        """
-        self.logger.info("Character info: %s", interaction.user)
-
-    @character.command(name="use", description="Use a character")
+    @character.command(
+        name="use", description="Select a character to use as your active character"
+    )
     @app_commands.describe(name="The name of the character to use")
     async def use_character(
         self, interaction: discord.Interaction, name: str | None = None
     ):
-        """
-        Use a character
-        """
-        if name is None:
-            # TODO: Select active character using selection view
+        player = Player.from_member(interaction.user)
+
+        max_characters = self.bot.game_settings.max_characters_per_player
+        if max_characters == 1:
+            await interaction.response.send_message(
+                "You can only have one character, it will be used automatically.",
+                ephemeral=True,
+            )
+
+            characters = await player.get_characters(self.db_game)
+            await player.set_active_character(self.db_game, characters[0])
             return
 
-        await interaction.response.send_message(
-            f"Character {name} selected, you are now playing as {name}"
-        )
+        if name is None:
+            characters = await player.get_characters(self.db_game)
+            active_character = await player.get_active_character(self.db_game)
+
+            view = CharacterSelectionView(
+                db=self.db_game,
+                characters=[
+                    (character, await character.character_class(self.db_game))
+                    for character in characters
+                ],
+                active_character=active_character,
+                interaction=interaction,
+            )
+
+            await interaction.response.send_message(
+                "Select a character to use",
+                view=view,
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+
+            characters = await player.get_characters(self.db_game)
+            for character in characters:
+                if character.name.lower() == name.lower():
+                    await player.set_active_character(self.db_game, character)
+                    await interaction.followup.send(
+                        f"Character {name} selected, you are now playing as {name}",
+                        ephemeral=True,
+                    )
+                    return
+
+            await interaction.followup.send(
+                f"Character {name} not found.",
+                ephemeral=True,
+            )
 
     @character.command(name="current", description="Get the current character")
     async def current_character(self, interaction: discord.Interaction):
-        """
-        Get the current character
-        """
         player = Player.from_member(interaction.user)
         active_character = await player.get_active_character(self.db_game)
         if active_character:
             character_class = await active_character.character_class(self.db_game)
             await interaction.response.send_message(
+                "You are currently playing as",
                 embed=CharacterWidget(
                     character=active_character,
                     character_class=character_class,
                     is_active=True,
-                )
+                ),
+                ephemeral=True,
             )
         else:
             characters = await player.get_characters(self.db_game)
@@ -178,7 +203,7 @@ class Character(commands.Cog):
             else:
                 await player.set_active_character(self.db_game, characters[0])
                 await interaction.response.send_message(
-                    f"You are now playing as {characters[0].name}"
+                    f"You are now playing as {characters[0].name}", ephemeral=True
                 )
 
 

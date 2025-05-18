@@ -1,5 +1,7 @@
 import logging
 
+import discord
+from discord import app_commands
 from discord.ext import commands
 from surrealdb import AsyncSurreal
 
@@ -13,6 +15,16 @@ class Player(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         self.logger.info("Player cog loaded")
+
+    player = app_commands.Group(name="player", description="Player commands")
+
+    @player.command(name="sync", description="Sync users")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def sync(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        await self.bot.sync_users()
+        await interaction.followup.send("Synced users")
 
 
 async def setup(bot: commands.Bot) -> None:

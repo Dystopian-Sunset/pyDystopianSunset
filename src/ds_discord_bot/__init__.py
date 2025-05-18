@@ -16,10 +16,10 @@ random.seed()
 
 async def _async_main() -> None:
     discord_logger = logging.getLogger("discord")
-    discord_logger.setLevel(logging.DEBUG)
+    discord_logger.setLevel(logging.INFO)
 
     ds_logger = logging.getLogger(__name__)
-    ds_logger.setLevel(logging.DEBUG)
+    ds_logger.setLevel(logging.INFO)
 
     dt_fmt = "%Y-%m-%d %H:%M:%S"
     formatter = logging.Formatter(
@@ -60,6 +60,7 @@ async def _async_main() -> None:
             Extension.WELCOME,
             Extension.PLAYER,
             Extension.CHARACTER,
+            Extension.GAME,
         ]
 
         async with DSBot(

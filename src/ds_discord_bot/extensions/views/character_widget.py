@@ -3,23 +3,6 @@ from discord import Color, Embed
 from ds_common.models.character import Character
 from ds_common.models.character_class import CharacterClass
 
-# Character Widget Layout
-# -----------------------------------------------------
-# | Char         | Character Name | Class Name | Level 
-# | Avatar       |                |            |       
-# -----------------------------------------------------
-# | Faction | Shadow Level | Renown 
-# -----------------------------------------------------
-# | Stats:
-# | Health
-# | Stamina
-# | 
-# -----------------------------------------------------
-# | Top Abilities:
-# | 1)
-# | 2)
-# | 3)
-# -----------------------------------------------------
 
 class CharacterWidget(Embed):
     def __init__(self, character: Character, character_class: CharacterClass, is_active: bool = False):

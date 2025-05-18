@@ -11,7 +11,7 @@ from ds_common.models.game_settings import GameSettings
 from .extensions import Extension
 
 
-class DSBot(commands.Bot):
+class DSBot(commands.AutoShardedBot):
     def __init__(
         self,
         *args,
@@ -23,6 +23,7 @@ class DSBot(commands.Bot):
         self.enabled_extensions: list[Extension] = enabled_extensions
         self.db_game: AsyncSurreal = db_game
         self.game_settings: GameSettings = GameSettings()
+        self.channel_welcome: TextChannel | None = None
         self.channel_bot_commands: TextChannel | None = None
         self.channel_bot_logs: TextChannel | None = None
         self.channel_moderation_logs: TextChannel | None = None
@@ -79,6 +80,11 @@ class DSBot(commands.Bot):
                 return channel
         return None
 
+    async def verify_roles(self) -> None:
+        for role in self.guilds[0].roles:
+            if role.name == "Player":
+                self.logger.debug("Found role: %s", role)
+
     async def log(self, level: str, message: str) -> None:
         level = level.upper()
 
@@ -96,6 +102,7 @@ class DSBot(commands.Bot):
 
     @override
     async def on_ready(self) -> None:
+        self.channel_welcome = await self.get_channel("👋🏾-welcome")
         self.channel_bot_commands = await self.get_channel("bot-commands")
         self.channel_bot_logs = await self.get_channel("bot-log")
         self.channel_moderation_logs = await self.get_channel("moderator-only")
@@ -105,6 +112,7 @@ class DSBot(commands.Bot):
         self.logger.info(f"Shard Count: {self.shard_count or 'N/A'}")
         self.logger.info(f"Guild: {self.guilds[0].name} (ID: {self.guilds[0].id})")
         self.logger.info(f"User Count: {len(self.users)}")
+        self.logger.info(f"Role Count: {len(self.guilds[0].roles)}")
         self.logger.info(f"Game Settings: {self.game_settings}")
         self.logger.info(f"Enabled Extensions: {self.enabled_extensions}")
         self.logger.info(f"Database: {self.db_game.url.raw_url}")
@@ -119,5 +127,7 @@ class DSBot(commands.Bot):
         )
         self.logger.info("Bot is ready!")
 
-        # await self.log("INFO", "Bot is ready!")
-        await self.tree.sync()
+        guild = self.guilds[0]
+        await self.tree.sync(guild=guild)
+
+        self.logger.info("Synced application commands")

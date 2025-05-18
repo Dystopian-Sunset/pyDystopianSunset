@@ -1,0 +1,18 @@
+REQUIRED_ROLES = [
+    "GM",
+    "kingpin",
+    "developer",
+    "moderator",
+    "automaton",
+    "Quillian Undercity",
+    "Server Booster",
+    "quillfang",
+    "night prowler",
+    "slicktail",
+    "obsidian beak",
+    "serpent's embrace",
+    "berserking bruin",
+    "citizen",
+    "veteran"
+]
+    

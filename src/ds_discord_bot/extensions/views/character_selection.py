@@ -3,49 +3,54 @@ from discord.ui import Select, View
 from surrealdb import AsyncSurreal
 
 from ds_common.models.character import Character
-from ds_discord_bot.extensions.dialogs.character_creation_modal import (
-    CharacterCreationModal,
-)
+from ds_common.models.character_class import CharacterClass
+from ds_common.models.player import Player
 
 
 class CharacterSelection(Select):
-    def __init__(self, db: AsyncSurreal, characters: list[dict]):
-        """
-        characters: list[dict] = [
-            {
-                "id": 1,
-                "name": "Character 1",
-                "class_name": "Class 1",
-                "class_emoji": "emoji",
-            }
-        ]
-        """
-        self.db: AsyncSurreal = db
-
-        # TODO: Get active character to set default
-
-        # TODO: Get character class to set emoji
-
+    def __init__(
+        self,
+        db: AsyncSurreal,
+        characters: list[tuple[Character, CharacterClass]],
+        active_character: Character | None = None,
+        interaction: discord.Interaction | None = None,
+    ):
         options = [
             discord.SelectOption(
-                label=character["name"],
-                description=character["class_name"],
-                emoji=character["class_emoji"],
-                value=str(character["id"]),
-                default=True if character["id"] == 1 else False,
+                label=f"{character.name} | lvl: {character.level} | N/A"
+                + (" (⭐)" if character.id == active_character.id else ""),
+                description=character_class.name,
+                emoji=character_class.emoji,
+                default=True if character.id == active_character.id else False,
             )
-            for character in characters
+            for character, character_class in characters
         ]
 
         super().__init__(placeholder="Select a character", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        # TODO: Set is_playing_as relation between player and character
-        await interaction.response.send_modal(CharacterCreationModal(db=self.db, character_class_id=self.values[0]))
-
+        player = Player.from_member(interaction.user)
+        await player.set_active_character(self.db, self.values[0])
+        await interaction.followup.send(
+            f"Character {self.values[0]} selected, you are now playing as {self.values[0]}",
+            ephemeral=True,
+        )
 
 class CharacterSelectionView(View):
-    def __init__(self, db: AsyncSurreal, characters: list[Character]):
+    def __init__(
+        self,
+        db: AsyncSurreal,
+        characters: list[tuple[Character, CharacterClass]],
+        active_character: Character | None = None,
+        interaction: discord.Interaction | None = None,
+    ):
         super().__init__(timeout=300)  # 5 minutes
 
-        self.add_item(CharacterSelection(db=db, characters=characters))
+        self.add_item(
+            CharacterSelection(
+                db=db,
+                characters=characters,
+                active_character=active_character,
+                interaction=interaction,
+            )
+        )

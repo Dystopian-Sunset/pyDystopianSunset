@@ -48,6 +48,9 @@ class Player(BaseModel):
             self.model_dump(),
         )
 
+    async def delete(self, db: AsyncSurreal) -> None:
+        return await db.delete(self.id)
+
     async def update_last_active(self, db: AsyncSurreal):
         self.last_active = datetime.now(timezone.utc)
 
