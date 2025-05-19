@@ -15,11 +15,14 @@ load_dotenv()
 random.seed()
 
 async def _async_main() -> None:
+    log_level = os.getenv("DS_LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level)
+
     discord_logger = logging.getLogger("discord")
     discord_logger.setLevel(logging.INFO)
 
     ds_logger = logging.getLogger(__name__)
-    ds_logger.setLevel(logging.INFO)
+    ds_logger.setLevel(log_level)
 
     dt_fmt = "%Y-%m-%d %H:%M:%S"
     formatter = logging.Formatter(
@@ -55,6 +58,7 @@ async def _async_main() -> None:
         intents.members = True
 
         extensions = [
+            Extension.ADMIN,
             Extension.GENERAL,
             Extension.MODERATION,
             Extension.WELCOME,

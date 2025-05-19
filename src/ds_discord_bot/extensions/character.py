@@ -62,6 +62,7 @@ class Character(commands.Cog):
         view = CharacterClassSelectionView(
             db=self.db_game,
             character_classes=await CharacterClass.get_all(self.db_game),
+            character_creation_channel=self.character_creation_channel,
         )
 
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -205,6 +206,37 @@ class Character(commands.Cog):
                 await interaction.response.send_message(
                     f"You are now playing as {characters[0].name}", ephemeral=True
                 )
+
+    @character.command(name="help", description="Get help with character commands")
+    async def help(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        help_text = ""
+
+        for command in self.bot.commands:
+            if command.name == "help":
+                continue
+
+            help_text += f"`!{command.name}` - {command.description}\n"
+
+        if self.character.commands:
+            help_text += "\n\n"
+
+            for command in self.character.commands:
+                if command.name == "help":
+                    continue
+
+                help_text += (
+                    f"`/{command.parent.name} {command.name}` - {command.description}\n"
+                )
+
+        embed = discord.Embed(
+            title="Character command help",
+            description=help_text,
+            color=discord.Color.red(),
+        )
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

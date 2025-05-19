@@ -1,7 +1,7 @@
-import random
-from datetime import datetime, timezone
+import logging
 from typing import override
 
+import discord
 from discord import Interaction, ui
 from surrealdb import AsyncSurreal, RecordID
 
@@ -15,14 +15,22 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
         label="Character Name", placeholder="Enter your character's name"
     )
 
-    def __init__(self, db: AsyncSurreal, character_class_id: int | str | RecordID):
+    def __init__(
+        self,
+        db: AsyncSurreal,
+        character_class_id: int | str | RecordID,
+        character_creation_channel: discord.TextChannel | None = None,
+    ):
         super().__init__()
 
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self.db = db
         self.character_class_id = character_class_id
+        self.character_creation_channel = character_creation_channel
 
     @override
     async def on_submit(self, interaction: Interaction) -> None:
+        character = None
         try:
             # Defer the response first to prevent interaction timeout
             await interaction.response.defer(ephemeral=True, thinking=True)
@@ -30,23 +38,8 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
             character_class = await CharacterClass.from_db(
                 db=self.db, id=self.character_class_id
             )
-            character = Character(
+            character = await Character.generate_character(
                 name=self.character_name.value,
-                level=1,
-                exp=0,
-                stats={
-                    "STR": random.randint(1, 20),
-                    "DEX": random.randint(1, 20),
-                    "INT": random.randint(1, 20),
-                    "CHA": random.randint(1, 20),
-                    "PER": random.randint(1, 20),
-                    "LUK": random.randint(1, 20),
-                },
-                effects={},
-                renown=0,
-                shadow_level=0,
-                created_at=datetime.now(timezone.utc),
-                last_active=datetime.now(timezone.utc),
             )
 
             player = Player.from_member(interaction.user)
@@ -62,6 +55,19 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
             await interaction.followup.send(
                 f"Character {character.name} created successfully!", ephemeral=True
             )
+
+            if self.character_creation_channel:
+                await self.character_creation_channel.send(
+                    f"A new {character_class.name}, {character.name}, has joined the world!"
+                )
+                self.logger.debug(
+                    "Sent character creation announcement to %s",
+                    self.character_creation_channel,
+                )
+            else:
+                self.logger.debug(
+                    "Character creation channel not set, cannot send announcement"
+                )
 
         except Exception as e:
             # Log the error

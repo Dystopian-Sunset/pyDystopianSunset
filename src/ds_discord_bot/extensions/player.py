@@ -26,6 +26,37 @@ class Player(commands.Cog):
         await self.bot.sync_users()
         await interaction.followup.send("Synced users")
 
+    @player.command(name="help", description="Get help with player commands")
+    async def help(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        help_text = ""
+
+        for command in self.bot.commands:
+            if command.name == "help":
+                continue
+
+            help_text += f"`!{command.name}` - {command.description}\n"
+
+        if self.player.commands:
+            help_text += "\n\n"
+
+            for command in self.player.commands:
+                if command.name == "help":
+                    continue
+
+                help_text += (
+                    f"`/{command.parent.name} {command.name}` - {command.description}\n"
+                )
+
+        embed = discord.Embed(
+            title="Player command help",
+            description=help_text,
+            color=discord.Color.red(),
+        )
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
 
 async def setup(bot: commands.Bot) -> None:
     bot.logger.info("Loading Player cog...")

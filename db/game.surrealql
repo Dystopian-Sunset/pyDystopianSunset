@@ -77,7 +77,7 @@ INSERT IGNORE INTO character_stats { id: 5, name: "Perception", abbr: "PER", des
 INSERT IGNORE INTO character_stats { id: 6, name: "Luck", abbr: "LUK", description: "Luck represents a character's ability to get lucky or avoid bad luck. It can impact various aspects of their experience, such as avoiding traps, landing on good deals, or getting unexpected assistance.", emoji: "🍀", max_value: 100, is_primary: true, is_mutable: false};
 
 -- Relationship of Character Class to Stats
-DEFINE TABLE OVERWRITE has_class_stat TYPE RELATION FROM character_class TO character_stats ENFORCED;
+DEFINE TABLE OVERWRITE has_class_stat TYPE RELATION FROM character_class TO character_stats;
 
 -- Insert class -> stats relationships
 INSERT RELATION INTO has_class_stat { in: character_class:1, out: character_stats:1 }; -- Strength (Enforcer)
@@ -93,3 +93,13 @@ INSERT RELATION INTO has_class_stat { in: character_class:5, out: character_stat
 INSERT RELATION INTO has_class_stat { in: character_class:5, out: character_stats:3 }; -- Intellect (Wild Card)
 INSERT RELATION INTO has_class_stat { in: character_class:5, out: character_stats:4 }; -- Charisma (Wild Card)
 INSERT RELATION INTO has_class_stat { in: character_class:5, out: character_stats:5 }; -- Perception (Wild Card);
+
+-- Game Session Table
+DEFINE TABLE IF NOT EXISTS game_session SCHEMALESS TYPE NORMAL;
+
+DEFINE FIELD IF NOT EXISTS name ON game_session TYPE string COMMENT "Game session name";
+DEFINE FIELD IF NOT EXISTS channel_id ON game_session TYPE int COMMENT "Game session channel ID";
+DEFINE FIELD IF NOT EXISTS created_at ON game_session TYPE datetime COMMENT "Game session created at";
+
+-- Relationship between Game Session and Player
+DEFINE TABLE IF NOT EXISTS is_playing_in TYPE RELATION FROM player TO game_session;

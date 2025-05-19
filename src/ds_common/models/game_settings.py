@@ -8,7 +8,7 @@ class GameSettings(BaseModel):
     max_characters_per_player: int = Field(default=3)  # max characters per player
     max_game_sessions: int = Field(default=50)  # max game sessions
     max_players_per_game_session: int = Field(default=4)  # max players per game session
-    max_game_session_idle_duration: int = Field(default=15)  # in minutes
+    max_game_session_idle_duration: int = Field(default=30)  # in minutes
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

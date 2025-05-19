@@ -29,6 +29,10 @@ class General(commands.Cog):
         help_text += "Here is a listing of system commands, grouped by category:\n"
 
         for command in self.bot.tree.get_commands():
+            if command.name == "help":
+                # Skip the root level help command as it's redundant in this context
+                continue
+
             cog = command.parent
             if cog:
                 help_text += f"\n{cog.name}\n"
