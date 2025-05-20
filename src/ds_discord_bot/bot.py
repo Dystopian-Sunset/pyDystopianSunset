@@ -2,7 +2,7 @@ import logging
 import traceback
 from typing import override
 
-from discord import Activity, ActivityType, TextChannel
+from discord import Activity, ActivityType, Role, TextChannel
 from discord.ext import commands
 from surrealdb import AsyncSurreal
 
@@ -105,6 +105,13 @@ class DSBot(commands.AutoShardedBot):
             if channel.name == channel_name:
                 self.logger.debug("Found channel: %s", channel)
                 return channel
+        return None
+
+    async def get_role(self, role_name: str) -> Role | None:
+        for role in self.guilds[0].roles:
+            if role.name == role_name:
+                self.logger.debug("Found role: %s", role)
+                return role
         return None
 
     async def verify_roles(self) -> None:

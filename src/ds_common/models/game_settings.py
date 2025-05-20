@@ -9,6 +9,7 @@ class GameSettings(BaseModel):
     max_game_sessions: int = Field(default=50)  # max game sessions
     max_players_per_game_session: int = Field(default=4)  # max players per game session
     max_game_session_idle_duration: int = Field(default=30)  # in minutes
+    game_channel_slowmode_delay: int = Field(default=5)  # in seconds
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

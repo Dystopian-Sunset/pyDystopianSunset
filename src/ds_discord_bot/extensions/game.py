@@ -159,9 +159,6 @@ class Game(commands.Cog):
             for channel in self.game_session_category.text_channels:
                 if channel.name not in db_channel_names:
                     await self._delete_channel(channel)
-                    self.logger.debug(
-                        f"Deleted game session channel: {channel.name} not found in database"
-                    )
 
             for channel in self.game_session_category.text_channels:
                 # Add channels that are not in the active game channels
@@ -250,19 +247,21 @@ class Game(commands.Cog):
 
         channel = await self._create_text_channel(channel_name)
 
-        citizen_role = self.bot.guilds[0].get_role("citizen")
+        citizen_role = await self.bot.get_role("citizen")
         if citizen_role:
             await channel.set_permissions(
                 citizen_role,
                 view_channel=False,
+                create_instant_invite=False,
                 send_messages=False,
-                read_messages=False,
+                read_messages=True,
+                read_message_history=True,
                 add_reactions=False,
             )
         else:
-            self.logger.warning("moderator role not found")
+            self.logger.warning("citizen role not found")
 
-        moderator_role = self.bot.guilds[0].get_role("moderator")
+        moderator_role = await self.bot.get_role("moderator")
         if moderator_role:
             await channel.set_permissions(
                 moderator_role,
@@ -276,18 +275,20 @@ class Game(commands.Cog):
         else:
             self.logger.warning("moderator role not found")
 
-        GM_role = self.bot.guilds[0].get_role("GM")
-        if GM_role:
-            await channel.set_permissions(
-                GM_role,
-                view_channel=True,
-                send_messages=True,
-                read_messages=True,
-                read_message_history=True,
-                manage_messages=True,
-            )
-        else:
-            self.logger.warning("GM role not found")
+        # GM_role = await self.bot.get_role("GM")
+        # if GM_role:
+        #     await channel.set_permissions(
+        #         GM_role,
+        #         administrator=True,
+        #         view_channel=True,
+        #         manage_channels=True,
+        #         send_messages=True,
+        #         read_messages=True,
+        #         read_message_history=True,
+        #         manage_messages=True,
+        #     )
+        # else:
+        #     self.logger.warning("GM role not found")
 
         await channel.set_permissions(
             member,
@@ -304,6 +305,11 @@ class Game(commands.Cog):
             "Please review the game rules and setup in the #rules channel.\n"
             "Remember that you can use `/game help` for help with game commands.\n"
             f"To help ensure the best experience for all players, sessions that have been idle for {self.bot.game_settings.max_game_session_idle_duration} minutes will be automatically deleted."
+        )
+
+        channel.slowmode_delay = self.bot.game_settings.game_channel_slowmode_delay
+        self.logger.debug(
+            f"Set slowmode delay to {self.bot.game_settings.game_channel_slowmode_delay} seconds"
         )
 
         self.active_game_channels[channel] = datetime.now(timezone.utc)
