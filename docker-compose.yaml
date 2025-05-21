@@ -60,6 +60,8 @@ services:
       - root
       - --pass
       - root
+      - --log
+      - debug
 
 volumes:
   # dragonfly:

@@ -5,8 +5,10 @@ from discord import TextChannel, app_commands
 from discord.ext import commands
 from surrealdb import AsyncSurreal
 
-from ds_common.models.character_class import CharacterClass
 from ds_common.models.player import Player
+from ds_common.repository.character import CharacterRepository
+from ds_common.repository.character_class import CharacterClassRepository
+from ds_common.repository.player import PlayerRepository
 from ds_discord_bot.extensions.views.character_class_selection import (
     CharacterClassSelectionView,
 )
@@ -41,11 +43,12 @@ class Character(commands.Cog):
     @character.command(name="create", description="Create a new character to play as")
     async def create_character(self, interaction: discord.Interaction):
         player = Player.from_member(interaction.user)
+        player_repository = PlayerRepository(self.db_game)
 
         if not interaction.user.dm_channel:
             await interaction.user.create_dm()
 
-        characters = await player.get_characters(self.db_game)
+        characters = await player_repository.get_characters(player)
         if len(characters) >= self.bot.game_settings.max_characters_per_player:
             await interaction.response.send_message(
                 "You have reached the maximum number of characters. Delete an existing character before trying to create a new one. Use `/character delete` to delete a character.",
@@ -61,7 +64,7 @@ class Character(commands.Cog):
 
         view = CharacterClassSelectionView(
             db=self.db_game,
-            character_classes=await CharacterClass.get_all(self.db_game),
+            character_classes=await CharacterClassRepository(self.db_game).get_all(),
             character_creation_channel=self.character_creation_channel,
         )
 
@@ -72,7 +75,9 @@ class Character(commands.Cog):
     @app_commands.describe(name="The name of the character to delete")
     async def delete_character(self, interaction: discord.Interaction, name: str):
         player = Player.from_member(interaction.user)
-        characters = await player.get_characters(self.db_game)
+        player_repository = PlayerRepository(self.db_game)
+        character_repository = CharacterRepository(self.db_game)
+        characters = await player_repository.get_characters(player)
 
         if not characters:
             await interaction.response.send_message(
@@ -80,9 +85,10 @@ class Character(commands.Cog):
                 ephemeral=True,
             )
         else:
+            # TODO: Add a confirmation modal type DELETE Name to confirm deletion
             for character in characters:
                 if character.name.lower() == name.lower():
-                    await character.delete(self.db_game)
+                    await character_repository.delete(character.id)
                     await interaction.response.send_message(
                         f"Character {name} deleted successfully!", ephemeral=True
                     )
@@ -97,18 +103,22 @@ class Character(commands.Cog):
         self.logger.info("Character list: %s", interaction.user)
 
         player = Player.from_member(interaction.user)
-        characters = await player.get_characters(self.db_game)
+        player_repository = PlayerRepository(self.db_game)
+        character_repository = CharacterRepository(self.db_game)
+        characters = await player_repository.get_characters(player)
         if not characters:
             await interaction.response.send_message(
                 "You have no characters. Create one with `/character create`",
                 ephemeral=True,
             )
         else:
-            active_character = await player.get_active_character(self.db_game)
+            active_character = await player_repository.get_active_character(player)
 
             embeds = []
             for character in characters:
-                character_class = await character.character_class(self.db_game)
+                character_class = await character_repository.get_character_class(
+                    character
+                )
                 embeds.append(
                     CharacterWidget(
                         character=character,
@@ -130,6 +140,8 @@ class Character(commands.Cog):
         self, interaction: discord.Interaction, name: str | None = None
     ):
         player = Player.from_member(interaction.user)
+        player_repository = PlayerRepository(self.db_game)
+        character_repository = CharacterRepository(self.db_game)
 
         max_characters = self.bot.game_settings.max_characters_per_player
         if max_characters == 1:
@@ -138,18 +150,34 @@ class Character(commands.Cog):
                 ephemeral=True,
             )
 
-            characters = await player.get_characters(self.db_game)
-            await player.set_active_character(self.db_game, characters[0])
+            characters = await player_repository.get_characters(player)
+            await player_repository.set_active_character(player, characters[0])
             return
 
         if name is None:
-            characters = await player.get_characters(self.db_game)
-            active_character = await player.get_active_character(self.db_game)
+            characters = await player_repository.get_characters(player)
+            active_character = await player_repository.get_active_character(player)
+
+            if not characters:
+                await interaction.response.send_message(
+                    "You have no characters. Create one with `/character create`",
+                    ephemeral=True,
+                )
+                return
+            elif len(characters) == 1:
+                await player_repository.set_active_character(player, characters[0])
+                await interaction.response.send_message(
+                    f"You are now playing as {characters[0].name}", ephemeral=True
+                )
+                return
 
             view = CharacterSelectionView(
                 db=self.db_game,
                 characters=[
-                    (character, await character.character_class(self.db_game))
+                    (
+                        character,
+                        await character_repository.get_character_class(character),
+                    )
                     for character in characters
                 ],
                 active_character=active_character,
@@ -164,10 +192,10 @@ class Character(commands.Cog):
         else:
             await interaction.response.defer(ephemeral=True, thinking=True)
 
-            characters = await player.get_characters(self.db_game)
+            characters = await player_repository.get_characters(player)
             for character in characters:
                 if character.name.lower() == name.lower():
-                    await player.set_active_character(self.db_game, character)
+                    await player_repository.set_active_character(player, character)
                     await interaction.followup.send(
                         f"Character {name} selected, you are now playing as {name}",
                         ephemeral=True,
@@ -182,9 +210,13 @@ class Character(commands.Cog):
     @character.command(name="current", description="Get the current character")
     async def current_character(self, interaction: discord.Interaction):
         player = Player.from_member(interaction.user)
-        active_character = await player.get_active_character(self.db_game)
+        player_repository = PlayerRepository(self.db_game)
+        character_repository = CharacterRepository(self.db_game)
+        active_character = await player_repository.get_active_character(player)
         if active_character:
-            character_class = await active_character.character_class(self.db_game)
+            character_class = await character_repository.get_character_class(
+                active_character
+            )
             await interaction.response.send_message(
                 "You are currently playing as",
                 embed=CharacterWidget(
@@ -195,14 +227,14 @@ class Character(commands.Cog):
                 ephemeral=True,
             )
         else:
-            characters = await player.get_characters(self.db_game)
+            characters = await player_repository.get_characters(player)
             if not characters:
                 await interaction.response.send_message(
                     "You have no characters. Create one with `/character create`",
                     ephemeral=True,
                 )
             else:
-                await player.set_active_character(self.db_game, characters[0])
+                await player_repository.set_active_character(player, characters[0])
                 await interaction.response.send_message(
                     f"You are now playing as {characters[0].name}", ephemeral=True
                 )

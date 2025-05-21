@@ -6,8 +6,10 @@ from discord import Interaction, ui
 from surrealdb import AsyncSurreal, RecordID
 
 from ds_common.models.character import Character
-from ds_common.models.character_class import CharacterClass
 from ds_common.models.player import Player
+from ds_common.repository.character import CharacterRepository
+from ds_common.repository.character_class import CharacterClassRepository
+from ds_common.repository.player import PlayerRepository
 
 
 class CharacterCreationModal(ui.Modal, title="Character Creation"):
@@ -31,12 +33,26 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
     @override
     async def on_submit(self, interaction: Interaction) -> None:
         character = None
+        character_repo = CharacterRepository(self.db)
+        character_class_repo = CharacterClassRepository(self.db)
+        player_repo = PlayerRepository(self.db)
+
         try:
             # Defer the response first to prevent interaction timeout
             await interaction.response.defer(ephemeral=True, thinking=True)
 
-            character_class = await CharacterClass.from_db(
-                db=self.db, id=self.character_class_id
+            existing_character = await character_repo.get_by_(
+                "name", self.character_name.value, case_sensitive=False
+            )
+            if existing_character:
+                await interaction.followup.send(
+                    f"Character '{self.character_name.value}' already exists. Please choose a different name.",
+                    ephemeral=True,
+                )
+                return
+
+            character_class = await character_class_repo.get_by_id(
+                self.character_class_id
             )
             character = await Character.generate_character(
                 name=self.character_name.value,
@@ -44,12 +60,12 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
 
             player = Player.from_member(interaction.user)
 
-            await character.insert(self.db)
-            await character.set_class(self.db, character_class)
-            await player.relate_character(self.db, character)
+            await character_repo.insert(character)
+            await character_repo.set_character_class(character, character_class)
+            await player_repo.add_character(player, character)
 
-            if await player.get_active_character(self.db) is None:
-                await player.set_active_character(self.db, character)
+            if await player_repo.get_active_character(player) is None:
+                await player_repo.set_active_character(player, character)
 
             # Use followup.send instead of response.send_message since we deferred
             await interaction.followup.send(
@@ -89,4 +105,4 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
 
             # Remove the character if it was created
             if character:
-                await character.delete(self.db)
+                await character_repo.delete(character.id)

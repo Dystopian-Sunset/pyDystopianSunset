@@ -7,6 +7,7 @@ from discord.ext import commands
 from surrealdb import AsyncSurreal
 
 from ds_common.models.game_settings import GameSettings
+from ds_common.repository.game_settings import GameSettingsRepository
 
 from .extensions import Extension
 
@@ -22,7 +23,7 @@ class DSBot(commands.AutoShardedBot):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.enabled_extensions: list[Extension] = enabled_extensions
         self.db_game: AsyncSurreal = db_game
-        self.game_settings: GameSettings = GameSettings()
+        self.game_settings: GameSettings | None = None
         self.channel_welcome: TextChannel | None = None
         self.channel_bot_commands: TextChannel | None = None
         self.channel_bot_logs: TextChannel | None = None
@@ -72,18 +73,12 @@ class DSBot(commands.AutoShardedBot):
         """
 
         self.logger.info("Loading game settings...")
-        self.game_settings = await self.db_game.query(
-            "SELECT * FROM game_settings LIMIT 1"
-        )
+        self.game_settings = await GameSettingsRepository(self.db_game).get_by_id(1)
 
         if not self.game_settings:
             self.logger.info("Game settings not found, creating default...")
-            self.game_settings = GameSettings()
-            await self.db_game.insert(
-                "game_settings", {"id": 1, **self.game_settings.model_dump()}
-            )
+            self.game_settings = await GameSettingsRepository(self.db_game).seed_db()
         else:
-            self.game_settings = GameSettings(**self.game_settings[0])
             self.logger.info("Game settings loaded: %s", self.game_settings)
 
     async def load_extensions(self) -> None:

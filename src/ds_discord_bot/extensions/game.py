@@ -9,6 +9,8 @@ from surrealdb import AsyncSurreal
 from ds_common.models.game_session import GameSession
 from ds_common.models.player import Player
 from ds_common.name_generator import NameGenerator
+from ds_common.repository.game_session import GameSessionRepository
+from ds_common.repository.player import PlayerRepository
 
 
 class Game(commands.Cog):
@@ -31,10 +33,12 @@ class Game(commands.Cog):
         self.game_session_join_channel = await self._init_game_session_join_channel()
         self.logger.info("Game cog loaded")
 
-        for session in await GameSession.get_all(self.db_game):
-            channel = self.bot.guilds[0].get_channel(session.channel_id)
+        game_session_repository = GameSessionRepository(self.db_game)
+
+        for session in await game_session_repository.get_all():
+            channel = await self._find_channel(session.name)
             if not channel:
-                await session.delete(self.db_game)
+                await game_session_repository.delete(session.id)
                 continue
 
             self.active_game_channels[channel] = session.last_active_at
@@ -45,6 +49,8 @@ class Game(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        game_session_repository = GameSessionRepository(self.db_game)
+
         if message.channel in self.game_session_category.text_channels:
             if message.channel in self.active_game_channels:
                 self.logger.debug(
@@ -57,7 +63,7 @@ class Game(commands.Cog):
                 )
 
             self.active_game_channels[message.channel] = datetime.now(timezone.utc)
-            await GameSession.update_last_active_at(self.db_game, message.channel)
+            await game_session_repository.update_last_active_at(message.channel)
 
     @commands.Cog.listener()
     async def on_voice_state_update(
@@ -104,12 +110,12 @@ class Game(commands.Cog):
 
     @game.command(name="end", description="End the current game")
     async def end(self, interaction: discord.Interaction):
+        player = Player.from_member(interaction.user)
+        player_repository = PlayerRepository(self.db_game)
+
         await interaction.response.defer(ephemeral=True, thinking=True)
 
-        session = await GameSession.is_playing_in(
-            self.db_game, Player.from_member(interaction.user)
-        )
-
+        session = await player_repository.get_game_session(player)
         if not session:
             await interaction.followup.send(
                 "You are not playing in a game", ephemeral=True
@@ -151,8 +157,9 @@ class Game(commands.Cog):
 
     @tasks.loop(minutes=1.0)
     async def check_game_sessions(self):
+        game_session_repository = GameSessionRepository(self.db_game)
         if self.game_session_category:
-            db_sessions = await GameSession.get_all(self.db_game)
+            db_sessions = await game_session_repository.get_all()
             db_channel_names = [session.name for session in db_sessions]
 
             # Delete channels that are not in the found as sessions in the database
@@ -176,7 +183,7 @@ class Game(commands.Cog):
                 max_age = self.bot.game_settings.max_game_session_idle_duration * 60
 
                 if channel_age > max_age:
-                    session = await GameSession.from_channel(self.db_game, channel)
+                    session = await game_session_repository.from_channel(channel)
                     await self.end_game_session(session)
 
                     del self.active_game_channels[channel]
@@ -198,7 +205,8 @@ class Game(commands.Cog):
     async def create_game_session(self, member: discord.Member):
         # Create game session entry in SurrealDB and associate graph with player
         player = Player.from_member(member)
-        characters = await player.get_characters(self.db_game)
+        player_repository = PlayerRepository(self.db_game)
+        characters = await player_repository.get_characters(player)
 
         if not member.dm_channel:
             await member.create_dm()
@@ -209,7 +217,7 @@ class Game(commands.Cog):
             )
             return
 
-        if not await player.get_active_character(self.db_game):
+        if not await player_repository.get_active_character(player):
             await member.dm_channel.send(
                 "You have no active character. Select one with `/character use`"
             )
@@ -221,7 +229,7 @@ class Game(commands.Cog):
             )
             return
 
-        current_session = await GameSession.is_playing_in(self.db_game, player)
+        current_session = await player_repository.get_game_session(player)
         if current_session:
             channel_name = current_session.name
             channel = await self._find_channel(channel_name)
@@ -320,9 +328,10 @@ class Game(commands.Cog):
             created_at=datetime.now(timezone.utc),
             last_active_at=datetime.now(timezone.utc),
         )
+        game_session_repository = GameSessionRepository(self.db_game)
 
-        await game_session.insert(self.db_game)
-        await game_session.add_player(self.db_game, player)
+        await game_session_repository.insert(game_session)
+        await game_session_repository.add_player(player, game_session)
 
         # Remove member from join channel
         if member.voice:
@@ -332,7 +341,8 @@ class Game(commands.Cog):
         """
         End the game session the player is playing in
         """
-        for player in await session.players(self.db_game):
+        game_session_repository = GameSessionRepository(self.db_game)
+        for player in await game_session_repository.players(session):
             discord_id = player.id.id
             member = self.bot.guilds[0].get_member(discord_id)
 
@@ -346,7 +356,7 @@ class Game(commands.Cog):
 
             await member.move_to(None)
 
-        await session.delete(self.db_game)
+        await game_session_repository.delete(session)
 
         channel = await self._find_channel(session.name)
         if channel:

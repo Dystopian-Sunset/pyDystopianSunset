@@ -19,7 +19,8 @@ DEFINE FIELD IF NOT EXISTS display_name ON player TYPE string COMMENT "Discord p
 DEFINE FIELD IF NOT EXISTS display_avatar ON player TYPE string COMMENT "Discord player display avatar URL";
 DEFINE FIELD IF NOT EXISTS joined_at ON player TYPE datetime COMMENT "Player joined at";
 DEFINE FIELD IF NOT EXISTS last_active ON player TYPE datetime COMMENT "Player last active";
-DEFINE FIELD IF NOT EXISTS is_active ON player TYPE bool COMMENT "Player is active";
+DEFINE FIELD IF NOT EXISTS is_active ON player TYPE bool DEFAULT true COMMENT "Player is active";
+DEFINE FIELD IF NOT EXISTS is_banned ON player TYPE bool DEFAULT false COMMENT "Player is banned";
 
 -- Character Table
 DEFINE TABLE IF NOT EXISTS character SCHEMAFULL TYPE NORMAL;

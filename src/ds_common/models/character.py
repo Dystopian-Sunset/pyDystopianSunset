@@ -1,20 +1,16 @@
 import random
-import string
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
-from surrealdb import AsyncSurreal, RecordID
+from pydantic import Field
+from surrealdb import RecordID
 
-from ds_common.models.character_class import CharacterClass
+from ds_common.models.surreal_model import BaseSurrealModel
 
 
-class Character(BaseModel):
+class Character(BaseSurrealModel):
     id: RecordID = Field(
         primary_key=True,
-        default_factory=lambda: RecordID(
-            "character",
-            "".join(random.choices(string.ascii_letters + string.digits, k=20)),
-        ),
+        default_factory=lambda: BaseSurrealModel.create_id("character"),
     )
     name: str
     level: int
@@ -26,13 +22,12 @@ class Character(BaseModel):
     created_at: datetime
     last_active: datetime
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @staticmethod
+    @classmethod
     async def generate_character(
+        cls,
         name: str,
     ) -> "Character":
-        return Character(
+        return cls(
             name=name,
             level=1,
             exp=0,
@@ -50,41 +45,3 @@ class Character(BaseModel):
             created_at=datetime.now(timezone.utc),
             last_active=datetime.now(timezone.utc),
         )
-
-    @classmethod
-    async def from_db(cls, db: AsyncSurreal, id: str | RecordID) -> "Character":
-        if isinstance(id, str) and id.startswith("character:"):
-            id = RecordID("character", int(id.split(":")[1]))
-
-        return cls(**await db.select(id))
-
-    async def insert(self, db: AsyncSurreal) -> None:
-        await db.insert(
-            "character",
-            self.model_dump(),
-        )
-
-    async def delete(self, db: AsyncSurreal) -> None:
-        try:
-            await db.delete(self.id)
-        except Exception as e:
-            print(e)
-
-    async def update(self, db: AsyncSurreal) -> None:
-        await db.update(
-            self.id,
-            self.model_dump(),
-        )
-
-    async def character_class(self, db: AsyncSurreal) -> CharacterClass | None:
-        query = f"SELECT ->has_class->(?).* AS character_class FROM {self.id} LIMIT 1"
-        result = await db.query(query)
-        if not result or not result[0]["character_class"]:
-            return None
-        return CharacterClass(**result[0]["character_class"][0])
-
-    async def set_class(
-        self, db: AsyncSurreal, character_class: CharacterClass
-    ) -> None:
-        query = f"RELATE {self.id}->has_class->{character_class.id}"
-        await db.query(query)

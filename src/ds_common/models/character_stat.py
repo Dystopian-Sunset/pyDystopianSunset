@@ -1,8 +1,11 @@
-from pydantic import BaseModel, ConfigDict, Field
-from surrealdb import AsyncSurreal, RecordID
+
+from pydantic import Field
+from surrealdb import RecordID
+
+from ds_common.models.surreal_model import BaseSurrealModel
 
 
-class CharacterStat(BaseModel):
+class CharacterStat(BaseSurrealModel):
     id: RecordID = Field(primary_key=True)
     name: str
     abbr: str
@@ -11,10 +14,3 @@ class CharacterStat(BaseModel):
     max_value: int
     is_primary: bool
     is_mutable: bool
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @classmethod
-    async def from_db_select(cls, db: AsyncSurreal, id: int) -> "CharacterStat":
-        return cls(**await db.select(RecordID("character_stat", id)))
-        

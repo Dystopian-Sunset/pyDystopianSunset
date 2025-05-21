@@ -1,11 +1,13 @@
 import logging
+from datetime import datetime, timezone
 
 import discord
 from discord import Member, User
 from discord.ext import commands
-from surrealdb import AsyncSurreal, RecordID
+from surrealdb import AsyncSurreal
 
 from ds_common.models.player import Player
+from ds_common.repository.player import PlayerRepository
 
 
 class Welcome(commands.Cog):
@@ -36,7 +38,7 @@ class Welcome(commands.Cog):
     async def on_member_remove(self, member: Member | User):
         self.logger.info("Member left: %s", member)
 
-        player = await Player.from_db(self.db_game, RecordID("player", member.id))
+        player = await PlayerRepository(self.db_game).get_by_id(member.id)
         if player:
             characters = await player.get_characters(self.db_game)
             for character in characters:
@@ -63,12 +65,18 @@ class Welcome(commands.Cog):
         )
 
     async def sync_user(self, user: Member | User, is_active: bool = True):
-        db_user = Player.from_member(user, is_active)
+        player_repo = PlayerRepository(self.db_game)
+        player = await player_repo.get_by_id(user.id)
 
-        if not await Player.from_db(self.db_game, RecordID("player", user.id)):
-            await db_user.upsert(self.db_game)
-        else:
-            await db_user.update_last_active(self.db_game)
+        if not player:
+            player = Player.from_member(user, is_active)
+
+        player.is_active = is_active
+        player.last_active = datetime.now(timezone.utc)
+        await player_repo.upsert(player)
+
+        if player.is_banned:
+            await user.ban()
 
         self.logger.info(f"Synced user {user}:{user.id}")
 
