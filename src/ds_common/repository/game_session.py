@@ -47,6 +47,10 @@ class GameSessionRepository(BaseRepository[GameSession]):
         self.logger.debug("Query: %s", query)
         await self.db.query(query)
 
+        if not await self.players(game_session):
+            await self.delete(game_session)
+            self.logger.debug("Deleted game empty session %s", game_session)
+
     async def players(self, game_session: GameSession) -> list[Player] | None:
         """
         Returns the players in the game session.

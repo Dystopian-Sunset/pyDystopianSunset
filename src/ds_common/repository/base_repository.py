@@ -60,15 +60,19 @@ class BaseRepository(Generic[T]):
 
     async def insert(self, model: T) -> None:
         await self.db.insert(self.table_name, model.model_dump())
+        self.logger.debug(f"Inserted {self.table_name} {model.id} {model}")
 
     async def update(self, model: T) -> None:
         id = BaseSurrealModel.get_id(self.table_name, model.id)
         await self.db.update(id, model.model_dump())
+        self.logger.debug(f"Updated {self.table_name} {id} {model}")
 
     async def upsert(self, model: T) -> None:
         id = BaseSurrealModel.get_id(self.table_name, model.id)
         await self.db.upsert(id, model.model_dump())
+        self.logger.debug(f"Upserted {self.table_name} {id} {model}")
 
     async def delete(self, id: str | int | RecordID) -> None:
         id = BaseSurrealModel.get_id(self.table_name, id)
         await self.db.delete(id)
+        self.logger.debug(f"Deleted {self.table_name} {id}")

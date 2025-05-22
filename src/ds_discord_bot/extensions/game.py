@@ -54,12 +54,11 @@ class Game(commands.Cog):
         if message.channel in self.game_session_category.text_channels:
             if message.channel in self.active_game_channels:
                 self.logger.debug(
-                    "Message in active game session channel: %s", message.channel.name
+                    f"Message in active game session channel: {message.channel.name}"
                 )
             else:
                 self.logger.debug(
-                    "Adding missing game session channel to active game channels: %s",
-                    message.channel,
+                    f"Adding missing game session channel to active game channels: {message.channel.name}"
                 )
 
             self.active_game_channels[message.channel] = datetime.now(timezone.utc)
@@ -75,7 +74,7 @@ class Game(commands.Cog):
         if self.game_session_join_channel:
             if after.channel == self.game_session_join_channel:
                 self.logger.debug(
-                    "Member %s joined game session channel %s", member, after.channel
+                    f"Member {member} joined game session channel {after.channel}"
                 )
 
                 await self.create_game_session(member)
@@ -86,12 +85,12 @@ class Game(commands.Cog):
         if self.game_session_category:
             for channel in self.game_session_category.channels:
                 await self._delete_channel(channel)
-                self.logger.debug("Deleted game session channel: %s", channel.name)
+                self.logger.debug(f"Deleted game session channel: {channel.name}")
 
         if self.game_session_join_channel:
             await self._delete_channel(self.game_session_join_channel)
             self.logger.debug(
-                "Deleted game session join channel: %s",
+                f"Deleted game session join channel: {self.game_session_join_channel.name}",
                 self.game_session_join_channel.name,
             )
 
@@ -123,6 +122,8 @@ class Game(commands.Cog):
             return
 
         await self.end_game_session(session)
+
+        await interaction.followup.send("Game session ended", ephemeral=True)
 
     @game.command(name="help", description="Get help with game commands")
     async def help(self, interaction: discord.Interaction):
@@ -215,18 +216,21 @@ class Game(commands.Cog):
             await member.dm_channel.send(
                 "You have no characters. Create one with `/character create`"
             )
+            await self._move_member_from_join_channel(member)
             return
 
         if not await player_repository.get_active_character(player):
             await member.dm_channel.send(
                 "You have no active character. Select one with `/character use`"
             )
+            await self._move_member_from_join_channel(member)
             return
 
         if len(self.active_game_channels) >= self.bot.game_settings.max_game_sessions:
             await member.dm_channel.send(
                 "All game sessions are currently in use. Please try again later."
             )
+            await self._move_member_from_join_channel(member)
             return
 
         current_session = await player_repository.get_game_session(player)
@@ -242,7 +246,7 @@ class Game(commands.Cog):
                     f"To help ensure the best experience for all players, sessions that have been idle for {self.bot.game_settings.max_game_session_idle_duration} minutes will be automatically deleted."
                 )
 
-            await member.move_to(None)
+            await self._move_member_from_join_channel(member)
 
             await member.dm_channel.send(
                 f"You are already playing in a game session. Join <#{channel.id}> to continue, or end the session with `/game end`"
@@ -251,7 +255,28 @@ class Game(commands.Cog):
             return
 
         # Generate a new channel name, check DB for duplicates and generate a new name if needed
+        game_session_repository = GameSessionRepository(self.db_game)
+
+        self.logger.debug("Generating new game session name")
         channel_name = NameGenerator.generate_cyberpunk_channel_name()
+
+        counter = 1
+        while await game_session_repository.get_by_(field="name", value=channel_name):
+            self.logger.debug(
+                f"Duplicate game session name found, generating new name ({counter}/3)"
+            )
+            channel_name = NameGenerator.generate_cyberpunk_channel_name()
+            counter += 1
+
+            if counter > 3:
+                self.logger.warning(
+                    "Failed to generate unique game session name after 3 attempts"
+                )
+                await member.dm_channel.send(
+                    "Failed to generate game session after 3 attempts. Please try again later."
+                )
+                await self._move_member_from_join_channel(member)
+                return
 
         channel = await self._create_text_channel(channel_name)
 
@@ -328,14 +353,11 @@ class Game(commands.Cog):
             created_at=datetime.now(timezone.utc),
             last_active_at=datetime.now(timezone.utc),
         )
-        game_session_repository = GameSessionRepository(self.db_game)
 
         await game_session_repository.insert(game_session)
         await game_session_repository.add_player(player, game_session)
 
-        # Remove member from join channel
-        if member.voice:
-            await member.move_to(None)
+        await self._move_member_from_join_channel(member)
 
     async def end_game_session(self, session: GameSession):
         """
@@ -354,9 +376,9 @@ class Game(commands.Cog):
 
             await member.dm_channel.send("Game session ending...")
 
-            await member.move_to(None)
+            await self._move_member_from_join_channel(member)
 
-        await game_session_repository.delete(session)
+        await game_session_repository.delete(session.id)
 
         channel = await self._find_channel(session.name)
         if channel:
@@ -375,7 +397,7 @@ class Game(commands.Cog):
 
         for category in self.bot.guilds[0].categories:
             if category.name == name:
-                self.logger.debug("Found Game Session category: %s", category)
+                self.logger.debug(f"Found Game Session category: {category}")
                 self.game_session_category = category
                 return category
 
@@ -395,7 +417,7 @@ class Game(commands.Cog):
             game_session_join_channel = await self._create_voice_channel("Join to Play")
 
             self.logger.debug(
-                "Created game session join channel: %s", game_session_join_channel
+                f"Created game session join channel: {game_session_join_channel}"
             )
 
             # Ensure citizen role can join the channel
@@ -427,7 +449,7 @@ class Game(commands.Cog):
         if self.game_session_category:
             for channel in self.game_session_category.channels:
                 if channel.name == name:
-                    self.logger.debug("Found game session channel: %s", channel)
+                    self.logger.debug(f"Found game session channel: {channel}")
                     return channel
 
         self.logger.debug(f"Game session channel not found: {name}")
@@ -446,10 +468,10 @@ class Game(commands.Cog):
                     position=len(self.game_session_category.channels) - 1
                 )
 
-                self.logger.debug("Created game session text channel: %s", name)
+                self.logger.debug(f"Created game session text channel: {name}")
                 return channel
             else:
-                self.logger.debug("Game session text channel already exists: %s", name)
+                self.logger.debug(f"Game session text channel already exists: {name}")
                 return None
 
         self.logger.debug("Game Session category not found, cannot create channel")
@@ -468,10 +490,10 @@ class Game(commands.Cog):
                     position=len(self.game_session_category.channels) - 1
                 )
 
-                self.logger.debug("Created game session voice channel: %s", name)
+                self.logger.debug(f"Created game session voice channel: {name}")
                 return channel
             else:
-                self.logger.debug("Game session voice channel already exists: %s", name)
+                self.logger.debug(f"Game session voice channel already exists: {name}")
                 return None
 
         self.logger.debug("Game Session category not found, cannot create channel")
@@ -490,11 +512,21 @@ class Game(commands.Cog):
             if channel:
                 await channel.delete()
 
-                self.logger.debug("Deleted game session channel: %s", channel.name)
+                self.logger.debug(f"Deleted game session channel: {channel.name}")
                 return True
 
         self.logger.debug("Game Session category not found, cannot delete channel")
         return False
+
+    async def _move_member_from_join_channel(
+        self, member: discord.Member, channel: discord.VoiceChannel | None = None
+    ):
+        if member.voice:
+            if member.voice.channel == self.game_session_join_channel:
+                self.logger.debug(
+                    f"Moving member {member} from join channel {member.voice.channel} to {channel}"
+                )
+                await member.move_to(channel)
 
 
 async def setup(bot: commands.Bot) -> None:

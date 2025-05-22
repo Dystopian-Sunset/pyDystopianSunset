@@ -7,6 +7,7 @@ import random
 import discord
 from dotenv import load_dotenv
 from surrealdb import AsyncSurreal
+from surrealdb.connections.async_ws import AsyncWsSurrealConnection
 
 from .bot import DSBot
 from .extensions import Extension
@@ -57,15 +58,17 @@ async def _async_main() -> None:
         intents.moderation = True
         intents.members = True
 
-        extensions = [
-            Extension.ADMIN,
-            Extension.GENERAL,
-            Extension.MODERATION,
-            Extension.WELCOME,
-            Extension.PLAYER,
-            Extension.CHARACTER,
-            Extension.GAME,
-        ]
+        extensions = (
+            [extension for extension in Extension]
+            if not os.getenv("DS_EXTENSIONS")
+            else [
+                Extension[value.upper()]
+                for value in os.getenv("DS_EXTENSIONS").split(",")
+            ]
+        )
+        ds_logger.info(
+            f"Enabled extensions: {', '.join([extension.name for extension in extensions])}"
+        )
 
         async with DSBot(
             intents=intents,
@@ -78,9 +81,11 @@ async def _async_main() -> None:
         ) as bot:
             await bot.start(token=os.getenv("DS_DISCORD_TOKEN"))
     except (KeyboardInterrupt, asyncio.CancelledError):
-        print("Shutting down gracefully...")
+        ds_logger.info("Shutting down gracefully...")
     finally:
-        await db_game.close()
+        if isinstance(db_game, AsyncWsSurrealConnection):
+            ds_logger.info("Closing SurrealDB websocket connection...")
+            await db_game.close()
 
 
 def main():

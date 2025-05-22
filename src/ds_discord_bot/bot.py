@@ -54,7 +54,9 @@ class DSBot(commands.AutoShardedBot):
         self.logger.info(f"User Count: {len(self.users)}")
         self.logger.info(f"Role Count: {len(self.guilds[0].roles)}")
         self.logger.info(f"Game Settings: {self.game_settings}")
-        self.logger.info(f"Enabled Extensions: {self.enabled_extensions}")
+        self.logger.info(
+            f"Loaded Extensions: {', '.join([extension.name for extension in self.enabled_extensions])}"
+        )
         self.logger.info(f"Database: {self.db_game.url.raw_url}")
         self.logger.info(
             f"Bot Commands Channel: {self.channel_bot_commands.name} (ID: {self.channel_bot_commands.id})"

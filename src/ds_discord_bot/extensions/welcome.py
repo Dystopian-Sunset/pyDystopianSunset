@@ -7,6 +7,8 @@ from discord.ext import commands
 from surrealdb import AsyncSurreal
 
 from ds_common.models.player import Player
+from ds_common.repository.character import CharacterRepository
+from ds_common.repository.game_session import GameSessionRepository
 from ds_common.repository.player import PlayerRepository
 
 
@@ -38,16 +40,34 @@ class Welcome(commands.Cog):
     async def on_member_remove(self, member: Member | User):
         self.logger.info("Member left: %s", member)
 
-        player = await PlayerRepository(self.db_game).get_by_id(member.id)
+        player_repo = PlayerRepository(self.db_game)
+        player = await player_repo.get_by_id(member.id)
+        character_repo = CharacterRepository(self.db_game)
+        game_session_repo = GameSessionRepository(self.db_game)
         if player:
-            characters = await player.get_characters(self.db_game)
+            game_session = await player_repo.get_game_session(player)
+
+            if game_session:
+                await game_session_repo.remove_player(player, game_session)
+                self.logger.debug(
+                    "Removed player %s from game session %s",
+                    player,
+                    game_session,
+                )
+
+            characters = await player_repo.get_characters(player)
             for character in characters:
-                await character.delete(self.db_game)
-            await player.delete(self.db_game)
+                await character_repo.delete(character.id)
+                self.logger.debug("Deleted character %s", character)
+
+            player.is_active = False
+            player.last_active = datetime.now(timezone.utc)
+            await player_repo.upsert(player)
+            self.logger.debug("Deactivated player %s", player)
 
         if self.bot.channel_bot_logs:
             await self.bot.channel_bot_logs.send(
-                f"Member left: {member}, they had {len(characters)} characters. Player data has been purged. Hasta la vista, baby."
+                f"Member left: {member}, they had {len(characters)} characters. Player data has been deactivated. Hasta la vista, baby."
             )
 
     async def sync_users(self):
@@ -70,6 +90,9 @@ class Welcome(commands.Cog):
 
         if not player:
             player = Player.from_member(user, is_active)
+            self.logger.debug(f"Created player {player}")
+        else:
+            self.logger.debug(f"Found existing player {player}")
 
         player.is_active = is_active
         player.last_active = datetime.now(timezone.utc)

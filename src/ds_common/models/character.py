@@ -15,8 +15,8 @@ class Character(BaseSurrealModel):
     name: str
     level: int
     exp: int
-    stats: dict[str, int]
-    effects: dict[str, int]
+    stats: dict[str, int] = Field(default_factory=dict)
+    effects: dict[str, int] = Field(default_factory=dict)
     renown: int
     shadow_level: int
     created_at: datetime
