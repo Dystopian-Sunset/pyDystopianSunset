@@ -28,6 +28,7 @@ DEFINE TABLE IF NOT EXISTS character SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD IF NOT EXISTS name ON character TYPE string COMMENT "Character name";
 DEFINE FIELD IF NOT EXISTS level ON character TYPE int DEFAULT 1 COMMENT "Character level";
 DEFINE FIELD IF NOT EXISTS exp ON character TYPE int DEFAULT 0 COMMENT "Character experience";
+DEFINE FIELD OVERWRITE credits ON character TYPE int DEFAULT 0 COMMENT "Character monatary credits";
 DEFINE FIELD OVERWRITE stats ON character FLEXIBLE TYPE object COMMENT "Character stats";
 DEFINE FIELD OVERWRITE effects ON character FLEXIBLE TYPE object COMMENT "Effects are temporary modifiers to stats";
 DEFINE FIELD OVERWRITE renown ON character TYPE int COMMENT "Character renown";
