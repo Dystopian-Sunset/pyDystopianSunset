@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Pants workspace files
+/.pants.d/
+/dist
+/.pids
+/.pants.workdir.file_lock*
