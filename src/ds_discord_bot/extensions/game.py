@@ -11,6 +11,7 @@ from ds_common.models.player import Player
 from ds_common.name_generator import NameGenerator
 from ds_common.repository.game_session import GameSessionRepository
 from ds_common.repository.player import PlayerRepository
+from ds_npc.gm import GMContext, GMContextDependencies
 
 
 class Game(commands.Cog):
@@ -23,7 +24,12 @@ class Game(commands.Cog):
         self.game_session_text_channels: list[discord.TextChannel] = []
         self.game_session_voice_channels: list[discord.VoiceChannel] = []
 
-        self.active_game_channels: dict[discord.TextChannel, datetime] = {}
+        self.active_game_channels: dict[
+            discord.TextChannel | discord.VoiceChannel, datetime
+        ] = {}
+        self.gm_contexts: dict[
+            discord.TextChannel | discord.VoiceChannel, GMContext
+        ] = {}
 
         self.check_game_sessions.start()
 
@@ -43,12 +49,18 @@ class Game(commands.Cog):
 
             self.active_game_channels[channel] = session.last_active_at
 
+            gm_context = GMContext(session)
+            self.gm_contexts[channel] = gm_context
+
         self.logger.debug(
             f"Loaded {len(self.active_game_channels)} active game sessions from database"
         )
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        if message.author.bot:
+            return
+
         game_session_repository = GameSessionRepository(self.db_game)
 
         if message.channel in self.game_session_category.text_channels:
@@ -60,6 +72,19 @@ class Game(commands.Cog):
                 self.logger.debug(
                     f"Adding missing game session channel to active game channels: {message.channel.name}"
                 )
+
+            game_session = await game_session_repository.from_channel(message.channel)
+            response = await self.gm_contexts[message.channel].run(
+                message.content,
+                deps=GMContextDependencies(db=self.db_game, game_session=game_session),
+            )
+
+            if len(response) < 2000:
+                await message.channel.send(response)
+            else:
+                # Split response into chunks of 2000 characters
+                for i in range(0, len(response), 2000):
+                    await message.channel.send(response[i : i + 2000])
 
             self.active_game_channels[message.channel] = datetime.now(timezone.utc)
             await game_session_repository.update_last_active_at(message.channel)
@@ -122,8 +147,6 @@ class Game(commands.Cog):
             return
 
         await self.end_game_session(session)
-
-        await interaction.followup.send("Game session ended", ephemeral=True)
 
     @game.command(name="help", description="Get help with game commands")
     async def help(self, interaction: discord.Interaction):
@@ -359,6 +382,16 @@ class Game(commands.Cog):
 
         await self._move_member_from_join_channel(member)
 
+        # Initialize GM context and send intro
+        self.gm_contexts[channel] = GMContext(game_session)
+
+        player_character = await player_repository.get_active_character(player)
+        intro = await self.gm_contexts[channel].run(
+            f"Welcome player: {player_character.name}. Introduce the starting area. Paint a vivid description of the environment.",
+            deps=GMContextDependencies(db=self.db_game, game_session=game_session),
+        )
+        await channel.send(intro)
+
     async def end_game_session(self, session: GameSession):
         """
         End the game session the player is playing in
@@ -379,8 +412,18 @@ class Game(commands.Cog):
             await self._move_member_from_join_channel(member)
 
         await game_session_repository.delete(session.id)
-
         channel = await self._find_channel(session.name)
+
+        try:
+            del self.active_game_channels[channel]
+        except KeyError:
+            pass
+
+        try:
+            del self.gm_contexts[channel]
+        except KeyError:
+            pass
+
         if channel:
             await channel.delete()
 
