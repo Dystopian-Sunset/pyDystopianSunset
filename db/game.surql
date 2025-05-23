@@ -33,8 +33,8 @@ DEFINE FIELD OVERWRITE stats ON character FLEXIBLE TYPE object COMMENT "Characte
 DEFINE FIELD OVERWRITE effects ON character FLEXIBLE TYPE object COMMENT "Effects are temporary modifiers to stats";
 DEFINE FIELD OVERWRITE renown ON character TYPE int COMMENT "Character renown";
 DEFINE FIELD OVERWRITE shadow_level ON character TYPE int COMMENT "Character shadow level";
-DEFINE FIELD IF NOT EXISTS created_at ON character TYPE datetime DEFAULT datetime.now() COMMENT "Character created at";
-DEFINE FIELD IF NOT EXISTS last_active ON character TYPE datetime DEFAULT datetime.now() COMMENT "Character last active";
+DEFINE FIELD OVERWRITE created_at ON character TYPE datetime DEFAULT time::now() COMMENT "Character created at";
+DEFINE FIELD OVERWRITE last_active ON character TYPE datetime DEFAULT time::now() COMMENT "Character last active";
 
 DEFINE INDEX IF NOT EXISTS idx_character_name ON TABLE character FIELDS name UNIQUE COMMENT "Character name index";
 
@@ -103,8 +103,8 @@ DEFINE FIELD IF NOT EXISTS name ON game_session TYPE string COMMENT "Game sessio
 DEFINE FIELD IF NOT EXISTS channel_id ON game_session TYPE int COMMENT "Game session channel ID";
 DEFINE FIELD IF NOT EXISTS max_players ON game_session TYPE int COMMENT "Game session max players";
 DEFINE FIELD IF NOT EXISTS is_open ON game_session TYPE bool COMMENT "Game session is open";
-DEFINE FIELD IF NOT EXISTS created_at ON game_session TYPE datetime DEFAULT datetime.now() COMMENT "Game session created at";
-DEFINE FIELD IF NOT EXISTS last_active ON game_session TYPE datetime DEFAULT datetime.now() COMMENT "Game session last active";
+DEFINE FIELD OVERWRITE created_at ON game_session TYPE datetime DEFAULT time::now() COMMENT "Game session created at";
+DEFINE FIELD OVERWRITE last_active ON game_session TYPE datetime DEFAULT time::now() COMMENT "Game session last active";
 
 -- Relationship between Game Session and Player
 DEFINE TABLE IF NOT EXISTS is_playing_in TYPE RELATION FROM player TO game_session;

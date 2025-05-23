@@ -35,6 +35,7 @@ The project is structured as follows:
 
 # Documentation
 
+- Always add docstrings when creating functions and classes
 - Each service, and component MUST have documentation in the form of concise comments and documentation in the form of markdown files
 - There MUST be at least a README.md file in the root of each service, and component and it MUST contain a description of the component, its purpose, and how to use it
 
