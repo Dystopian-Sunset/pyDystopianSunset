@@ -49,7 +49,10 @@ class Game(commands.Cog):
 
             self.active_game_channels[channel] = session.last_active_at
 
-            gm_context = GMContext(session)
+            gm_context = GMContext(
+                db=self.db_game,
+                game_session=session,
+            )
             self.gm_contexts[channel] = gm_context
 
         self.logger.debug(
@@ -383,7 +386,10 @@ class Game(commands.Cog):
         await self._move_member_from_join_channel(member)
 
         # Initialize GM context and send intro
-        self.gm_contexts[channel] = GMContext(game_session)
+        self.gm_contexts[channel] = GMContext(
+            db=self.db_game,
+            game_session=game_session,
+        )
 
         player_character = await player_repository.get_active_character(player)
         intro = await self.gm_contexts[channel].run(

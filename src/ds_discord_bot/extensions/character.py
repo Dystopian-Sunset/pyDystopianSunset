@@ -143,6 +143,14 @@ class Character(commands.Cog):
         player_repository = PlayerRepository(self.db_game)
         character_repository = CharacterRepository(self.db_game)
 
+        session = await player_repository.get_game_session(player)
+        if session:
+            await interaction.response.send_message(
+                "You are already in a game session. Please leave it with `/game leave` before switching characters.",
+                ephemeral=True,
+            )
+            return
+
         max_characters = self.bot.game_settings.max_characters_per_player
         if max_characters == 1:
             await interaction.response.send_message(
