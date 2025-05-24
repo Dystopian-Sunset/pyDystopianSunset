@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timezone
 
 import discord
@@ -49,9 +50,11 @@ class Game(commands.Cog):
 
             self.active_game_channels[channel] = session.last_active_at
 
-            gm_context = GMContext(
+            gm_context = await GMContext.create(
                 db=self.db_game,
                 game_session=session,
+                model_name=os.getenv("DB_GM_MODEL_NAME", "gemma3:latest"),
+                base_url=os.getenv("DB_GM_BASE_URL", "http://localhost:11434/v1"),
             )
             self.gm_contexts[channel] = gm_context
 
@@ -64,6 +67,7 @@ class Game(commands.Cog):
         if message.author.bot:
             return
 
+        player_repository = PlayerRepository(self.db_game)
         game_session_repository = GameSessionRepository(self.db_game)
 
         if message.channel in self.game_session_category.text_channels:
@@ -76,18 +80,20 @@ class Game(commands.Cog):
                     f"Adding missing game session channel to active game channels: {message.channel.name}"
                 )
 
+            player = Player.from_member(message.author)
+            character = await player_repository.get_active_character(player)
             game_session = await game_session_repository.from_channel(message.channel)
             response = await self.gm_contexts[message.channel].run(
                 message.content,
-                deps=GMContextDependencies(db=self.db_game, game_session=game_session),
+                deps=GMContextDependencies(
+                    db=self.db_game,
+                    game_session=game_session,
+                    character_name=character.name,
+                ),
             )
 
-            if len(response) < 2000:
-                await message.channel.send(response)
-            else:
-                # Split response into chunks of 2000 characters
-                for i in range(0, len(response), 2000):
-                    await message.channel.send(response[i : i + 2000])
+            for chunk in response:
+                await message.channel.send(chunk)
 
             self.active_game_channels[message.channel] = datetime.now(timezone.utc)
             await game_session_repository.update_last_active_at(message.channel)
@@ -139,8 +145,6 @@ class Game(commands.Cog):
     async def end(self, interaction: discord.Interaction):
         player = Player.from_member(interaction.user)
         player_repository = PlayerRepository(self.db_game)
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
 
         session = await player_repository.get_game_session(player)
         if not session:
@@ -213,7 +217,8 @@ class Game(commands.Cog):
                     session = await game_session_repository.from_channel(channel)
                     await self.end_game_session(session)
 
-                    del self.active_game_channels[channel]
+                    if channel in self.active_game_channels:
+                        del self.active_game_channels[channel]
                 else:
                     self.logger.debug(
                         f"Game session channel {channel.name} idle for {int(channel_age)}/{int(max_age)} seconds"
@@ -386,17 +391,25 @@ class Game(commands.Cog):
         await self._move_member_from_join_channel(member)
 
         # Initialize GM context and send intro
-        self.gm_contexts[channel] = GMContext(
+        self.gm_contexts[channel] = await GMContext.create(
             db=self.db_game,
             game_session=game_session,
+            model_name=os.getenv("DB_GM_MODEL_NAME", "gemma3:latest"),
+            base_url=os.getenv("DB_GM_BASE_URL", "http://localhost:11434/v1"),
         )
 
         player_character = await player_repository.get_active_character(player)
         intro = await self.gm_contexts[channel].run(
             f"Welcome player: {player_character.name}. Introduce the starting area. Paint a vivid description of the environment.",
-            deps=GMContextDependencies(db=self.db_game, game_session=game_session),
+            deps=GMContextDependencies(
+                db=self.db_game,
+                game_session=game_session,
+                character_name=player_character.name,
+            ),
         )
-        await channel.send(intro)
+
+        for chunk in intro:
+            await channel.send(chunk)
 
     async def end_game_session(self, session: GameSession):
         """
@@ -420,15 +433,16 @@ class Game(commands.Cog):
         await game_session_repository.delete(session.id)
         channel = await self._find_channel(session.name)
 
-        try:
-            del self.active_game_channels[channel]
-        except KeyError:
-            pass
+        history_delete_query = (
+            f"DELETE FROM gm_history WHERE game_session_id == {session.id.id};"
+        )
+        await self.db_game.query(history_delete_query)
 
-        try:
+        if channel in self.active_game_channels:
+            del self.active_game_channels[channel]
+
+        if channel in self.gm_contexts:
             del self.gm_contexts[channel]
-        except KeyError:
-            pass
 
         if channel:
             await channel.delete()
