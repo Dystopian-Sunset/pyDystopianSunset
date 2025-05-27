@@ -15,6 +15,7 @@ class Character(BaseSurrealModel):
     name: str
     level: int
     exp: int
+    credits: int
     stats: dict[str, int] = Field(default_factory=dict)
     effects: dict[str, int] = Field(default_factory=dict)
     renown: int
@@ -31,6 +32,7 @@ class Character(BaseSurrealModel):
             name=name,
             level=1,
             exp=0,
+            credits=100,
             stats={
                 "CHA": random.randint(1, 20),
                 "DEX": random.randint(1, 20),

@@ -26,7 +26,6 @@ class Admin(commands.Cog):
         """
         Non slash command variant to force sync commands
         """
-        await ctx.defer(ephemeral=True)
         await self.bot.tree.sync()
         await ctx.send("Synced commands...")
 
