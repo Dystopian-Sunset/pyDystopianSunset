@@ -39,8 +39,8 @@ DEFINE FIELD OVERWRITE last_active ON character TYPE datetime DEFAULT time::now(
 DEFINE INDEX IF NOT EXISTS idx_character_name ON TABLE character FIELDS name UNIQUE COMMENT "Character name index";
 
 -- Relationship between Player and Character
-DEFINE TABLE IF NOT EXISTS has_character TYPE RELATION FROM player TO character ENFORCED;
-DEFINE TABLE OVERWRITE is_playing_as TYPE RELATION FROM player TO character;
+DEFINE TABLE IF NOT EXISTS player_has_character TYPE RELATION FROM player TO character ENFORCED;
+DEFINE TABLE OVERWRITE player_is_playing_as TYPE RELATION FROM player TO character;
 
 -- Character Class Table
 DEFINE TABLE OVERWRITE character_class SCHEMAFULL PERMISSIONS FOR create, update, delete WHERE $auth.admin = true TYPE NORMAL;
@@ -107,4 +107,5 @@ DEFINE FIELD OVERWRITE created_at ON game_session TYPE datetime DEFAULT time::no
 DEFINE FIELD OVERWRITE last_active ON game_session TYPE datetime DEFAULT time::now() COMMENT "Game session last active";
 
 -- Relationship between Game Session and Player
-DEFINE TABLE IF NOT EXISTS is_playing_in TYPE RELATION FROM player TO game_session;
+DEFINE TABLE IF NOT EXISTS player_is_playing_in TYPE RELATION FROM player TO game_session;
+DEFINE TABLE IF NOT EXISTS character_is_playing_in TYPE RELATION FROM character TO game_session;

@@ -1,25 +1,24 @@
 import logging
-import os
 from datetime import datetime, timezone
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-from surrealdb import AsyncSurreal
 
 from ds_common.models.game_session import GameSession
 from ds_common.models.player import Player
 from ds_common.name_generator import NameGenerator
 from ds_common.repository.game_session import GameSessionRepository
 from ds_common.repository.player import PlayerRepository
-from ds_npc.gm import GMContext, GMContextDependencies
+from ds_discord_bot.surreal_manager import SurrealManager
+from ds_npc.gm import GMAgent, GMAgentDependencies
 
 
 class Game(commands.Cog):
-    def __init__(self, bot: commands.Bot, db_game: AsyncSurreal):
+    def __init__(self, bot: commands.Bot, surreal_manager: SurrealManager):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.bot: commands.Bot = bot
-        self.db_game: AsyncSurreal = db_game
+        self.surreal_manager: SurrealManager = surreal_manager
         self.game_session_category: discord.CategoryChannel | None = None
         self.game_session_join_channel: discord.VoiceChannel | None = None
         self.game_session_text_channels: list[discord.TextChannel] = []
@@ -28,9 +27,7 @@ class Game(commands.Cog):
         self.active_game_channels: dict[
             discord.TextChannel | discord.VoiceChannel, datetime
         ] = {}
-        self.gm_contexts: dict[
-            discord.TextChannel | discord.VoiceChannel, GMContext
-        ] = {}
+        self.gm_contexts: dict[discord.TextChannel | discord.VoiceChannel, GMAgent] = {}
 
         self.check_game_sessions.start()
 
@@ -38,37 +35,16 @@ class Game(commands.Cog):
     async def on_ready(self):
         self.game_session_category = await self._find_game_session_category()
         self.game_session_join_channel = await self._init_game_session_join_channel()
+        await self._init_gm_contexts()
         self.logger.info("Game cog loaded")
-
-        game_session_repository = GameSessionRepository(self.db_game)
-
-        for session in await game_session_repository.get_all():
-            channel = await self._find_channel(session.name)
-            if not channel:
-                await game_session_repository.delete(session.id)
-                continue
-
-            self.active_game_channels[channel] = session.last_active_at
-
-            gm_context = await GMContext.create(
-                db=self.db_game,
-                game_session=session,
-                model_name=os.getenv("DB_GM_MODEL_NAME", "gemma3:latest"),
-                base_url=os.getenv("DB_GM_BASE_URL", "http://localhost:11434/v1"),
-            )
-            self.gm_contexts[channel] = gm_context
-
-        self.logger.debug(
-            f"Loaded {len(self.active_game_channels)} active game sessions from database"
-        )
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
             return
 
-        player_repository = PlayerRepository(self.db_game)
-        game_session_repository = GameSessionRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
+        game_session_repository = GameSessionRepository(self.surreal_manager)
 
         if message.channel in self.game_session_category.text_channels:
             if message.channel in self.active_game_channels:
@@ -83,17 +59,20 @@ class Game(commands.Cog):
             player = Player.from_member(message.author)
             character = await player_repository.get_active_character(player)
             game_session = await game_session_repository.from_channel(message.channel)
-            response = await self.gm_contexts[message.channel].run(
-                message.content,
-                deps=GMContextDependencies(
-                    db=self.db_game,
-                    game_session=game_session,
-                    character_name=character.name,
-                ),
-            )
 
-            for chunk in response:
-                await message.channel.send(chunk)
+            async with message.channel.typing():
+                response = await self.gm_contexts[message.channel].run(
+                    message.content,
+                    deps=GMAgentDependencies(
+                        db=self.surreal_manager,
+                        game_session=game_session,
+                        player=player,
+                        character=character,
+                    ),
+                )
+
+                for chunk in response:
+                    await message.channel.send(chunk)
 
             self.active_game_channels[message.channel] = datetime.now(timezone.utc)
             await game_session_repository.update_last_active_at(message.channel)
@@ -144,7 +123,7 @@ class Game(commands.Cog):
     @game.command(name="end", description="End the current game")
     async def end(self, interaction: discord.Interaction):
         player = Player.from_member(interaction.user)
-        player_repository = PlayerRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
 
         session = await player_repository.get_game_session(player)
         if not session:
@@ -188,7 +167,7 @@ class Game(commands.Cog):
 
     @tasks.loop(minutes=1.0)
     async def check_game_sessions(self):
-        game_session_repository = GameSessionRepository(self.db_game)
+        game_session_repository = GameSessionRepository(self.surreal_manager)
         if self.game_session_category:
             db_sessions = await game_session_repository.get_all()
             db_channel_names = [session.name for session in db_sessions]
@@ -237,8 +216,9 @@ class Game(commands.Cog):
     async def create_game_session(self, member: discord.Member):
         # Create game session entry in SurrealDB and associate graph with player
         player = Player.from_member(member)
-        player_repository = PlayerRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
         characters = await player_repository.get_characters(player)
+        player_character = await player_repository.get_active_character(player)
 
         if not member.dm_channel:
             await member.create_dm()
@@ -250,7 +230,7 @@ class Game(commands.Cog):
             await self._move_member_from_join_channel(member)
             return
 
-        if not await player_repository.get_active_character(player):
+        if not player_character:
             await member.dm_channel.send(
                 "You have no active character. Select one with `/character use`"
             )
@@ -286,7 +266,7 @@ class Game(commands.Cog):
             return
 
         # Generate a new channel name, check DB for duplicates and generate a new name if needed
-        game_session_repository = GameSessionRepository(self.db_game)
+        game_session_repository = GameSessionRepository(self.surreal_manager)
 
         self.logger.debug("Generating new game session name")
         channel_name = NameGenerator.generate_cyberpunk_channel_name()
@@ -376,8 +356,6 @@ class Game(commands.Cog):
             f"Set slowmode delay to {self.bot.game_settings.game_channel_slowmode_delay} seconds"
         )
 
-        self.active_game_channels[channel] = datetime.now(timezone.utc)
-
         game_session = GameSession(
             name=channel_name,
             channel_id=channel.id,
@@ -387,35 +365,39 @@ class Game(commands.Cog):
 
         await game_session_repository.insert(game_session)
         await game_session_repository.add_player(player, game_session)
+        await game_session_repository.add_character(player_character, game_session)
 
         await self._move_member_from_join_channel(member)
 
         # Initialize GM context and send intro
-        self.gm_contexts[channel] = await GMContext.create(
-            db=self.db_game,
+        self.gm_contexts[channel] = await GMAgent.create(
+            surreal_manager=self.surreal_manager,
             game_session=game_session,
-            model_name=os.getenv("DB_GM_MODEL_NAME", "gemma3:latest"),
-            base_url=os.getenv("DB_GM_BASE_URL", "http://localhost:11434/v1"),
         )
 
-        player_character = await player_repository.get_active_character(player)
-        intro = await self.gm_contexts[channel].run(
-            f"Welcome player: {player_character.name}. Introduce the starting area. Paint a vivid description of the environment.",
-            deps=GMContextDependencies(
-                db=self.db_game,
-                game_session=game_session,
-                character_name=player_character.name,
-            ),
-        )
+        async with channel.typing():
+            player_character = await player_repository.get_active_character(player)
+            intro = await self.gm_contexts[channel].run(
+                f"Welcome player: {player_character.name}. Introduce the starting area. Paint a vivid description of the environment.",
+                deps=GMAgentDependencies(
+                    surreal_manager=self.surreal_manager,
+                    player=player,
+                    game_session=game_session,
+                    character=player_character,
+                ),
+            )
 
-        for chunk in intro:
-            await channel.send(chunk)
+            for chunk in intro:
+                await channel.send(chunk)
+
+        self.active_game_channels[channel] = datetime.now(timezone.utc)
+        await game_session_repository.update_last_active_at(channel)
 
     async def end_game_session(self, session: GameSession):
         """
         End the game session the player is playing in
         """
-        game_session_repository = GameSessionRepository(self.db_game)
+        game_session_repository = GameSessionRepository(self.surreal_manager)
         for player in await game_session_repository.players(session):
             discord_id = player.id.id
             member = self.bot.guilds[0].get_member(discord_id)
@@ -434,9 +416,11 @@ class Game(commands.Cog):
         channel = await self._find_channel(session.name)
 
         history_delete_query = (
-            f"DELETE FROM gm_history WHERE game_session_id == {session.id.id};"
+            f"DELETE FROM gm_history WHERE game_session_id == '{session.id.id}';"
         )
-        await self.db_game.query(history_delete_query)
+
+        async with self.surreal_manager.get_db() as db:
+            await db.query(history_delete_query)
 
         if channel in self.active_game_channels:
             del self.active_game_channels[channel]
@@ -591,7 +575,29 @@ class Game(commands.Cog):
                 )
                 await member.move_to(channel)
 
+    async def _init_gm_contexts(self):
+        self.logger.debug("Initializing GM contexts")
+        game_session_repository = GameSessionRepository(self.surreal_manager)
+
+        for session in await game_session_repository.get_all():
+            channel = await self._find_channel(session.name)
+            if not channel:
+                await game_session_repository.delete(session.id)
+                continue
+
+            self.active_game_channels[channel] = session.last_active_at
+
+            gm_context = await GMAgent.create(
+                surreal_manager=self.surreal_manager,
+                game_session=session,
+            )
+            self.gm_contexts[channel] = gm_context
+
+        self.logger.debug(
+            f"Loaded {len(self.active_game_channels)} active game sessions from database"
+        )
+
 
 async def setup(bot: commands.Bot) -> None:
     bot.logger.info("Loading game cog...")
-    await bot.add_cog(Game(bot=bot, db_game=bot.db_game))
+    await bot.add_cog(Game(bot=bot, surreal_manager=bot.surreal_manager))

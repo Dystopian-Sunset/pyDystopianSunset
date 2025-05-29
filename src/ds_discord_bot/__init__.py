@@ -6,11 +6,10 @@ import random
 
 import discord
 from dotenv import load_dotenv
-from surrealdb import AsyncSurreal
-from surrealdb.connections.async_ws import AsyncWsSurrealConnection
 
 from .bot import DSBot
 from .extensions import Extension
+from .surreal_manager import SurrealManager
 
 load_dotenv()
 random.seed()
@@ -39,17 +38,12 @@ async def _async_main() -> None:
         f"Starting bot... {os.getenv('DS_DISCORD_TOKEN')[:5]}...{os.getenv('DS_DISCORD_TOKEN')[-5:]}"
     )
 
-    db_game = AsyncSurreal(os.getenv("DS_SURREALDB_URL", "http://localhost:8000"))
-    await db_game.signin(
-        {
-            "namespace": os.getenv("DS_SURREALDB_NAMESPACE", "ds_qu_shadows"),
-            "username": os.getenv("DS_SURREALDB_USERNAME"),
-            "password": os.getenv("DS_SURREALDB_PASSWORD"),
-        }
-    )
-    await db_game.use(
+    surreal_manager = await SurrealManager.create(
+        url=os.getenv("DS_SURREALDB_URL", "http://localhost:8000"),
+        username=os.getenv("DS_SURREALDB_USERNAME", "root"),
+        password=os.getenv("DS_SURREALDB_PASSWORD", ""),
         namespace=os.getenv("DS_SURREALDB_NAMESPACE", "ds_qu_shadows"),
-        database="game",
+        database=os.getenv("DS_SURREALDB_DATABASE", "game"),
     )
 
     try:
@@ -77,15 +71,11 @@ async def _async_main() -> None:
             strip_after_prefix=True,
             description="Discord Game Server for Dystopia Sunset",
             enabled_extensions=extensions,
-            db_game=db_game,
+            surreal_manager=surreal_manager,
         ) as bot:
             await bot.start(token=os.getenv("DS_DISCORD_TOKEN"))
     except (KeyboardInterrupt, asyncio.CancelledError):
         ds_logger.info("Shutting down gracefully...")
-    finally:
-        if isinstance(db_game, AsyncWsSurrealConnection):
-            ds_logger.info("Closing SurrealDB websocket connection...")
-            await db_game.close()
 
 
 def main():

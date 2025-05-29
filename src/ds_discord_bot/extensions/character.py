@@ -3,7 +3,6 @@ import logging
 import discord
 from discord import TextChannel, app_commands
 from discord.ext import commands
-from surrealdb import AsyncSurreal
 
 from ds_common.models.player import Player
 from ds_common.repository.character import CharacterRepository
@@ -14,20 +13,21 @@ from ds_discord_bot.extensions.views.character_class_selection import (
 )
 from ds_discord_bot.extensions.views.character_selection import CharacterSelectionView
 from ds_discord_bot.extensions.views.character_widget import CharacterWidget
+from ds_discord_bot.surreal_manager import SurrealManager
 
 
 class Character(commands.Cog):
-    def __init__(self, bot: commands.Bot, db_game: AsyncSurreal):
+    def __init__(self, bot: commands.Bot, surreal_manager: SurrealManager):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.bot: commands.Bot = bot
-        self.db_game: AsyncSurreal = db_game
+        self.surreal_manager: SurrealManager = surreal_manager
         self.character_creation_channel: TextChannel | None = None
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.character_creation_channel = await self.bot.get_channel(
-            "🔥-character-foundry"
-        )
+        # self.character_creation_channel = await self.bot.get_channel(
+        #     "🔥-character-foundry"
+        # )
 
         if self.character_creation_channel:
             self.logger.info(
@@ -43,7 +43,7 @@ class Character(commands.Cog):
     @character.command(name="create", description="Create a new character to play as")
     async def create_character(self, interaction: discord.Interaction):
         player = Player.from_member(interaction.user)
-        player_repository = PlayerRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
 
         if not interaction.user.dm_channel:
             await interaction.user.create_dm()
@@ -63,8 +63,10 @@ class Character(commands.Cog):
         )
 
         view = CharacterClassSelectionView(
-            db=self.db_game,
-            character_classes=await CharacterClassRepository(self.db_game).get_all(),
+            surreal_manager=self.surreal_manager,
+            character_classes=await CharacterClassRepository(
+                self.surreal_manager
+            ).get_all(),
             character_creation_channel=self.character_creation_channel,
         )
 
@@ -75,8 +77,8 @@ class Character(commands.Cog):
     @app_commands.describe(name="The name of the character to delete")
     async def delete_character(self, interaction: discord.Interaction, name: str):
         player = Player.from_member(interaction.user)
-        player_repository = PlayerRepository(self.db_game)
-        character_repository = CharacterRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
+        character_repository = CharacterRepository(self.surreal_manager)
         characters = await player_repository.get_characters(player)
 
         if not characters:
@@ -103,8 +105,8 @@ class Character(commands.Cog):
         self.logger.info("Character list: %s", interaction.user)
 
         player = Player.from_member(interaction.user)
-        player_repository = PlayerRepository(self.db_game)
-        character_repository = CharacterRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
+        character_repository = CharacterRepository(self.surreal_manager)
         characters = await player_repository.get_characters(player)
         if not characters:
             await interaction.response.send_message(
@@ -140,8 +142,8 @@ class Character(commands.Cog):
         self, interaction: discord.Interaction, name: str | None = None
     ):
         player = Player.from_member(interaction.user)
-        player_repository = PlayerRepository(self.db_game)
-        character_repository = CharacterRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
+        character_repository = CharacterRepository(self.surreal_manager)
 
         session = await player_repository.get_game_session(player)
         if session:
@@ -180,7 +182,7 @@ class Character(commands.Cog):
                 return
 
             view = CharacterSelectionView(
-                db=self.db_game,
+                surreal_manager=self.surreal_manager,
                 characters=[
                     (
                         character,
@@ -218,8 +220,8 @@ class Character(commands.Cog):
     @character.command(name="current", description="Get the current character")
     async def current_character(self, interaction: discord.Interaction):
         player = Player.from_member(interaction.user)
-        player_repository = PlayerRepository(self.db_game)
-        character_repository = CharacterRepository(self.db_game)
+        player_repository = PlayerRepository(self.surreal_manager)
+        character_repository = CharacterRepository(self.surreal_manager)
         active_character = await player_repository.get_active_character(player)
         if active_character:
             character_class = await character_repository.get_character_class(
@@ -281,4 +283,4 @@ class Character(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     bot.logger.info("Loading character cog...")
-    await bot.add_cog(Character(bot=bot, db_game=bot.db_game))
+    await bot.add_cog(Character(bot=bot, surreal_manager=bot.surreal_manager))

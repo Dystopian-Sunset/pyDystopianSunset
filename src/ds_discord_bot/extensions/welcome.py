@@ -4,19 +4,19 @@ from datetime import datetime, timezone
 import discord
 from discord import Member, User
 from discord.ext import commands
-from surrealdb import AsyncSurreal
 
 from ds_common.models.player import Player
 from ds_common.repository.character import CharacterRepository
 from ds_common.repository.game_session import GameSessionRepository
 from ds_common.repository.player import PlayerRepository
+from ds_discord_bot.surreal_manager import SurrealManager
 
 
 class Welcome(commands.Cog):
-    def __init__(self, bot: commands.Bot, db_game: AsyncSurreal):
+    def __init__(self, bot: commands.Bot, surreal_manager: SurrealManager):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.bot: commands.Bot = bot
-        self.db_game: AsyncSurreal = db_game
+        self.surreal_manager: SurrealManager = surreal_manager
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -40,10 +40,10 @@ class Welcome(commands.Cog):
     async def on_member_remove(self, member: Member | User):
         self.logger.info("Member left: %s", member)
 
-        player_repo = PlayerRepository(self.db_game)
+        player_repo = PlayerRepository(self.surreal_manager)
         player = await player_repo.get_by_id(member.id)
-        character_repo = CharacterRepository(self.db_game)
-        game_session_repo = GameSessionRepository(self.db_game)
+        character_repo = CharacterRepository(self.surreal_manager)
+        game_session_repo = GameSessionRepository(self.surreal_manager)
         if player:
             game_session = await player_repo.get_game_session(player)
 
@@ -85,7 +85,7 @@ class Welcome(commands.Cog):
         )
 
     async def sync_user(self, user: Member | User, is_active: bool = True):
-        player_repo = PlayerRepository(self.db_game)
+        player_repo = PlayerRepository(self.surreal_manager)
         player = await player_repo.get_by_id(user.id)
 
         if not player:
@@ -123,4 +123,4 @@ class Welcome(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     bot.logger.info("Loading welcome cog...")
-    await bot.add_cog(Welcome(bot=bot, db_game=bot.db_game))
+    await bot.add_cog(Welcome(bot=bot, surreal_manager=bot.surreal_manager))

@@ -1,14 +1,13 @@
 import logging
 
-from surrealdb import AsyncSurreal
-
 from ds_common.models.game_settings import GameSettings
 from ds_common.repository.base_repository import BaseRepository
+from ds_discord_bot.surreal_manager import SurrealManager
 
 
 class GameSettingsRepository(BaseRepository[GameSettings]):
-    def __init__(self, db: AsyncSurreal):
-        super().__init__(db, GameSettings)
+    def __init__(self, surreal_manager: SurrealManager):
+        super().__init__(surreal_manager, GameSettings)
         self.table_name = "game_settings"
         self.logger: logging.Logger = logging.getLogger(__name__)
 

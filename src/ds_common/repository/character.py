@@ -1,15 +1,15 @@
 import logging
 
-from surrealdb import AsyncSurreal
-
 from ds_common.models.character import Character
 from ds_common.models.character_class import CharacterClass
+from ds_common.models.player import Player
 from ds_common.repository.base_repository import BaseRepository
+from ds_discord_bot.surreal_manager import SurrealManager
 
 
 class CharacterRepository(BaseRepository[Character]):
-    def __init__(self, db: AsyncSurreal):
-        super().__init__(db, Character)
+    def __init__(self, surreal_manager: SurrealManager):
+        super().__init__(surreal_manager, Character)
         self.table_name = "character"
         self.logger: logging.Logger = logging.getLogger(__name__)
 
@@ -17,7 +17,8 @@ class CharacterRepository(BaseRepository[Character]):
         query = f"SELECT ->has_class->(?).* AS character_class FROM {character.id} LIMIT 1"
         self.logger.debug("Query: %s", query)
 
-        result = await self.db.query(query)
+        async with self.surreal_manager.get_db() as db:
+            result = await db.query(query)
         self.logger.debug("Result: %s", result)
 
         if not result or not result[0]["character_class"]:
@@ -33,5 +34,21 @@ class CharacterRepository(BaseRepository[Character]):
         query = f"RELATE {character.id}->has_class->{character_class.id}"
         self.logger.debug("Query: %s", query)
 
-        await self.db.query(query)
+        async with self.surreal_manager.get_db() as db:
+            await db.query(query)
         self.logger.debug("Character class set: %s", character_class)
+
+    async def get_player(self, character: Character) -> Player | None:
+        query = f"SELECT ->player_is_playing_as->(?).* AS player FROM {character.id} LIMIT 1"
+        self.logger.debug("Query: %s", query)
+
+        async with self.surreal_manager.get_db() as db:
+            result = await db.query(query)
+        self.logger.debug("Result: %s", result)
+
+        if not result or not result[0]["player"]:
+            self.logger.debug("Player not found")
+            return None
+
+        self.logger.debug("Player found: %s", result[0]["player"][0])
+        return Player(**result[0]["player"][0])

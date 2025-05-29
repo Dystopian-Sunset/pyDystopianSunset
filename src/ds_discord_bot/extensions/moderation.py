@@ -1,16 +1,19 @@
 import logging
+from datetime import datetime, timezone
 
 import discord
 from discord import app_commands
 from discord.ext import commands
-from surrealdb import AsyncSurreal
+
+from ds_common.repository.player import PlayerRepository
+from ds_discord_bot.surreal_manager import SurrealManager
 
 
 class Moderation(commands.Cog):
-    def __init__(self, bot: commands.Bot, db_game: AsyncSurreal):
+    def __init__(self, bot: commands.Bot, surreal_manager: SurrealManager):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.bot: commands.Bot = bot
-        self.db_game: AsyncSurreal = db_game
+        self.surreal_manager: SurrealManager = surreal_manager
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -42,6 +45,13 @@ class Moderation(commands.Cog):
 
         try:
             await user.ban()
+            player_repo = PlayerRepository(self.surreal_manager)
+            player = await player_repo.get_by_id(user.id)
+            if player:
+                player.is_active = False
+                player.last_active = datetime.now(timezone.utc)
+                await player_repo.upsert(player)
+                self.logger.debug("Deactivated player %s", player)
             await interaction.followup.send(f"Banned {user}")
         except discord.Forbidden:
             await interaction.followup.send(
@@ -56,6 +66,13 @@ class Moderation(commands.Cog):
 
         try:
             await user.unban()
+            player_repo = PlayerRepository(self.surreal_manager)
+            player = await player_repo.get_by_id(user.id)
+            if player:
+                player.is_active = True
+                player.last_active = datetime.now(timezone.utc)
+                await player_repo.upsert(player)
+                self.logger.debug("Activated player %s", player)
             await interaction.followup.send(f"Unbanned {user}")
         except discord.Forbidden:
             await interaction.followup.send(
@@ -96,4 +113,4 @@ class Moderation(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     bot.logger.info("Loading moderation cog...")
-    await bot.add_cog(Moderation(bot=bot, db_game=bot.db_game))
+    await bot.add_cog(Moderation(bot=bot, surreal_manager=bot.surreal_manager))

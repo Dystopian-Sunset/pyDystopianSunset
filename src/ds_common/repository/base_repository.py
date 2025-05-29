@@ -1,16 +1,17 @@
 import logging
 from typing import Any, Generic, TypeVar
 
-from surrealdb import AsyncSurreal, RecordID
+from surrealdb.data.types.record_id import RecordID
 
 from ds_common.models.surreal_model import BaseSurrealModel
+from ds_discord_bot.surreal_manager import SurrealManager
 
 T = TypeVar("T", bound=BaseSurrealModel)
 
 class BaseRepository(Generic[T]):
-    def __init__(self, db: AsyncSurreal, model_class: type[T]):
+    def __init__(self, surreal_manager: SurrealManager, model_class: type[T]):
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.db: AsyncSurreal = db
+        self.surreal_manager: SurrealManager = surreal_manager
         self.model_class: type[T] = model_class
         self.table_name: str = model_class.__name__.lower()
 
@@ -26,7 +27,8 @@ class BaseRepository(Generic[T]):
 
         self.logger.debug(f"Query: {query}")
 
-        result = await self.db.query(query)
+        async with self.surreal_manager.get_db() as db:
+            result = await db.query(query)
         self.logger.debug(f"Result: {result}")
 
         if not result:
@@ -38,7 +40,8 @@ class BaseRepository(Generic[T]):
 
     async def get_by_id(self, id: str | int | RecordID) -> T | None:
         id = BaseSurrealModel.get_id(self.table_name, id)
-        result = await self.db.select(id)
+        async with self.surreal_manager.get_db() as db:
+            result = await db.select(id)
         self.logger.debug(f"Result: {result}")
         if not result:
             self.logger.debug("No result found")
@@ -48,7 +51,8 @@ class BaseRepository(Generic[T]):
         return self.model_class(**result)
 
     async def get_all(self) -> list[T]:
-        result = await self.db.select(self.table_name)
+        async with self.surreal_manager.get_db() as db:
+            result = await db.select(self.table_name)
         self.logger.debug(f"Result: {result}")
 
         if not result:
@@ -59,20 +63,24 @@ class BaseRepository(Generic[T]):
         return [self.model_class(**record) for record in result]
 
     async def insert(self, model: T) -> None:
-        await self.db.insert(self.table_name, model.model_dump())
+        async with self.surreal_manager.get_db() as db:
+            await db.insert(self.table_name, model.model_dump())
         self.logger.debug(f"Inserted {self.table_name} {model.id} {model}")
 
     async def update(self, model: T) -> None:
         id = BaseSurrealModel.get_id(self.table_name, model.id)
-        await self.db.update(id, model.model_dump())
+        async with self.surreal_manager.get_db() as db:
+            await db.update(id, model.model_dump(exclude={"id"}))
         self.logger.debug(f"Updated {self.table_name} {id} {model}")
 
     async def upsert(self, model: T) -> None:
         id = BaseSurrealModel.get_id(self.table_name, model.id)
-        await self.db.upsert(id, model.model_dump())
+        async with self.surreal_manager.get_db() as db:
+            await db.upsert(id, model.model_dump(exclude={"id"}))
         self.logger.debug(f"Upserted {self.table_name} {id} {model}")
 
     async def delete(self, id: str | int | RecordID) -> None:
         id = BaseSurrealModel.get_id(self.table_name, id)
-        await self.db.delete(id)
+        async with self.surreal_manager.get_db() as db:
+            await db.delete(id)
         self.logger.debug(f"Deleted {self.table_name} {id}")

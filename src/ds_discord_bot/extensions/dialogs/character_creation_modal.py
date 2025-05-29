@@ -3,13 +3,14 @@ from typing import override
 
 import discord
 from discord import Interaction, ui
-from surrealdb import AsyncSurreal, RecordID
+from surrealdb import RecordID
 
 from ds_common.models.character import Character
 from ds_common.models.player import Player
 from ds_common.repository.character import CharacterRepository
 from ds_common.repository.character_class import CharacterClassRepository
 from ds_common.repository.player import PlayerRepository
+from ds_discord_bot.surreal_manager import SurrealManager
 
 
 class CharacterCreationModal(ui.Modal, title="Character Creation"):
@@ -19,23 +20,23 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
 
     def __init__(
         self,
-        db: AsyncSurreal,
+        surreal_manager: SurrealManager,
         character_class_id: int | str | RecordID,
         character_creation_channel: discord.TextChannel | None = None,
     ):
         super().__init__()
 
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.db = db
+        self.surreal_manager = surreal_manager
         self.character_class_id = character_class_id
         self.character_creation_channel = character_creation_channel
 
     @override
     async def on_submit(self, interaction: Interaction) -> None:
         character = None
-        character_repo = CharacterRepository(self.db)
-        character_class_repo = CharacterClassRepository(self.db)
-        player_repo = PlayerRepository(self.db)
+        character_repo = CharacterRepository(self.surreal_manager)
+        character_class_repo = CharacterClassRepository(self.surreal_manager)
+        player_repo = PlayerRepository(self.surreal_manager)
 
         try:
             # Defer the response first to prevent interaction timeout
@@ -87,9 +88,7 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
 
         except Exception as e:
             # Log the error
-            interaction.client.logger.error(
-                f"Error in character creation: {str(e)}", exc_info=True
-            )
+            self.logger.error(f"Error in character creation: {str(e)}", exc_info=True)
 
             # Send error message to user
             if interaction.response.is_done():

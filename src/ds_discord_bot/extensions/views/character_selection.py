@@ -1,16 +1,16 @@
 import discord
 from discord.ui import Select, View
-from surrealdb import AsyncSurreal
 
 from ds_common.models.character import Character
 from ds_common.models.character_class import CharacterClass
 from ds_common.models.player import Player
+from ds_discord_bot.surreal_manager import SurrealManager
 
 
 class CharacterSelection(Select):
     def __init__(
         self,
-        db: AsyncSurreal,
+        surreal_manager: SurrealManager,
         characters: list[tuple[Character, CharacterClass]],
         active_character: Character | None = None,
         interaction: discord.Interaction | None = None,
@@ -30,7 +30,7 @@ class CharacterSelection(Select):
 
     async def callback(self, interaction: discord.Interaction):
         player = Player.from_member(interaction.user)
-        await player.set_active_character(self.db, self.values[0])
+        await player.set_active_character(self.surreal_manager, self.values[0])
         await interaction.followup.send(
             f"Character {self.values[0]} selected, you are now playing as {self.values[0]}",
             ephemeral=True,
@@ -39,7 +39,7 @@ class CharacterSelection(Select):
 class CharacterSelectionView(View):
     def __init__(
         self,
-        db: AsyncSurreal,
+        surreal_manager: SurrealManager,
         characters: list[tuple[Character, CharacterClass]],
         active_character: Character | None = None,
         interaction: discord.Interaction | None = None,
@@ -48,7 +48,7 @@ class CharacterSelectionView(View):
 
         self.add_item(
             CharacterSelection(
-                db=db,
+                surreal_manager=surreal_manager,
                 characters=characters,
                 active_character=active_character,
                 interaction=interaction,

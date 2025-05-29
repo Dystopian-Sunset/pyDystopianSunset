@@ -4,12 +4,12 @@ from typing import override
 
 from discord import Activity, ActivityType, Role, TextChannel
 from discord.ext import commands
-from surrealdb import AsyncSurreal
 
 from ds_common.models.game_settings import GameSettings
 from ds_common.repository.game_settings import GameSettingsRepository
 
 from .extensions import Extension
+from .surreal_manager import SurrealManager
 
 
 class DSBot(commands.AutoShardedBot):
@@ -17,12 +17,12 @@ class DSBot(commands.AutoShardedBot):
         self,
         *args,
         enabled_extensions: list[Extension],
-        db_game: AsyncSurreal,
+        surreal_manager: SurrealManager,
         **kwargs,
     ):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.enabled_extensions: list[Extension] = enabled_extensions
-        self.db_game: AsyncSurreal = db_game
+        self.surreal_manager: SurrealManager = surreal_manager
         self.game_settings: GameSettings | None = None
         self.channel_welcome: TextChannel | None = None
         self.channel_bot_commands: TextChannel | None = None
@@ -57,7 +57,7 @@ class DSBot(commands.AutoShardedBot):
         self.logger.info(
             f"Loaded Extensions: {', '.join([extension.name for extension in self.enabled_extensions])}"
         )
-        self.logger.info(f"Database: {self.db_game.url.raw_url}")
+        self.logger.info(f"Database: {self.surreal_manager.url}")
         self.logger.info(
             f"Bot Commands Channel: {self.channel_bot_commands.name} (ID: {self.channel_bot_commands.id})"
         )
@@ -75,11 +75,15 @@ class DSBot(commands.AutoShardedBot):
         """
 
         self.logger.info("Loading game settings...")
-        self.game_settings = await GameSettingsRepository(self.db_game).get_by_id(1)
+        self.game_settings = await GameSettingsRepository(
+            self.surreal_manager
+        ).get_by_id(1)
 
         if not self.game_settings:
             self.logger.info("Game settings not found, creating default...")
-            self.game_settings = await GameSettingsRepository(self.db_game).seed_db()
+            self.game_settings = await GameSettingsRepository(
+                self.surreal_manager
+            ).seed_db()
         else:
             self.logger.info("Game settings loaded: %s", self.game_settings)
 
