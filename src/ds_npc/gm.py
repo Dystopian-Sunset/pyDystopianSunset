@@ -16,7 +16,9 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from ds_common.models.character import Character
+from ds_common.models.character_class import CharacterClass
 from ds_common.models.game_session import GameSession
+from ds_common.models.npc import NPC
 from ds_common.models.player import Player
 from ds_common.repository.character import CharacterRepository
 from ds_common.repository.game_session import GameSessionRepository
@@ -30,6 +32,7 @@ class GMAgentDependencies:
     game_session: GameSession
     player: Player
     character: Character
+    character_class: CharacterClass
 
 
 CURRENCY_TYPES = Literal["credit"]
@@ -149,8 +152,8 @@ class GMAgent:
         self,
         game_session: GameSession,
         surreal_manager: SurrealManager,
-        model_name: str = os.getenv("MODEL_NAME", "gemma3:latest"),
-        base_url: str = os.getenv("BASE_URL", "http://localhost:11434/v1"),
+        model_name: str,
+        base_url: str,
     ):
         self.logger = logging.getLogger(__name__)
         self.surreal_manager = surreal_manager
@@ -180,8 +183,8 @@ class GMAgent:
         cls,
         game_session: GameSession,
         surreal_manager: SurrealManager,
-        model_name: str = os.getenv("MODEL_NAME", "gemma3:latest"),
-        base_url: str = os.getenv("BASE_URL", "http://localhost:11434/v1"),
+        model_name: str = os.getenv("DB_GM_MODEL_NAME", "gemma3:latest"),
+        base_url: str = os.getenv("DB_GM_BASE_URL", "http://localhost:11434/v1"),
     ):
         self = cls(game_session, surreal_manager, model_name, base_url)
         await self._load_history()
@@ -199,20 +202,17 @@ class GMAgent:
         self.logger.debug(f"Running agent with message: {message}")
 
         enhanced_prompt = f"""
-Player Action: {message}
-
-MANDATORY REQUIREMENTS:
-1. Call get_character_credits() to check current credits before any credit references
-2. Call give_credits() for ANY credit acquisition (loot, buy, craft, quest reward)  
-3. Call remove_credits() for ANY credit usage/loss (consume, sell, drop, break)
-
 Current player context: {deps}
 
-Process this action and call ALL required functions. Do not skip any function calls.
+CRITICAL: Process this action and call ALL required functions. Do not skip any function calls. Do not output function names or call signatures EVER. Never output function calls or any code or pseudo code to the player.
+
+REMEMBER: You are a game master and are responsible for maintaining the game world and ensuring that the game is fun and engaging for the player.
+
+Player Action: {message}
 """
 
         result = await self.agent.run(
-            enhanced_prompt,
+            message,
             message_history=self.messages[-10:]
             if len(self.messages) > 10
             else self.messages,
@@ -259,7 +259,7 @@ Process this action and call ALL required functions. Do not skip any function ca
         )
 
         gm_history = GMHistory(
-            game_session_id=str(self.game_session.id.id),
+            game_session_id=str(self.game_session.id),
             character_name=character.name,
             request=request,
             model_messages=messages,
@@ -269,7 +269,7 @@ Process this action and call ALL required functions. Do not skip any function ca
             gm_history = GMHistory(
                 **await self.surreal_manager.db.create(
                     "gm_history",
-                    gm_history.model_dump(),
+                    gm_history.model_dump(exclude={"id"}),
                 )
             )
         except Exception:
@@ -284,7 +284,7 @@ Process this action and call ALL required functions. Do not skip any function ca
 
     async def _load_history(self) -> None:
         self.logger.debug(f"Loading history for game session {self.game_session.id}")
-        query = f"SELECT * FROM gm_history WHERE game_session_id == '{self.game_session.id.id}' ORDER BY created_at DESC LIMIT 10;"
+        query = f"SELECT * FROM gm_history WHERE game_session_id == '{self.game_session.id}' ORDER BY created_at DESC LIMIT 10;"
         self.logger.debug("Query: %s", query)
 
         async with self.surreal_manager.get_db() as db:
@@ -300,25 +300,25 @@ Process this action and call ALL required functions. Do not skip any function ca
             )
 
     def _register_tools(self):
-        # @self.agent.tool
-        # async def create_npc(
-        #     ctx: RunContext[GMAgentDependencies],
-        #     request: RequestGenerateNPC,
-        # ) -> NPC:
-        #     """
-        #     Select existing NPC or create a new NPC for the player to interact with.
-        #     """
-        #     print(
-        #         f"!!! Selecting or creating NPC: {request.name}, {request.race}, {request.background}, {request.profession}, {request.faction}, {request.location}"
-        #     )
-        #     return NPC.generate_npc(
-        #         request.name,
-        #         request.race,
-        #         request.background,
-        #         request.profession,
-        #         request.faction,
-        #         request.location,
-        #     )
+        @self.agent.tool
+        async def fetch_npc(
+            ctx: RunContext[GMAgentDependencies],
+            request: RequestGenerateNPC,
+        ) -> NPC:
+            """
+            Select existing NPC or create a new NPC for the player to interact with.
+            """
+            print(
+                f"!!! Selecting or creating NPC: {request.name}, {request.race}, {request.background}, {request.profession}, {request.faction}, {request.location}"
+            )
+            return NPC.generate_npc(
+                request.name,
+                request.race,
+                request.background,
+                request.profession,
+                request.faction,
+                request.location,
+            )
 
         @self.agent.tool
         async def get_character_credits(
@@ -351,20 +351,17 @@ Process this action and call ALL required functions. Do not skip any function ca
             return requesting_character.credits
 
         @self.agent.tool
-        async def give_credits(
+        async def adjust_character_credits(
             ctx: RunContext[GMAgentDependencies],
             request: RequestAddCredits,
         ) -> int:
             """
-            Give credits to the character.
+            Adjust credits for the character.
 
             Args:
                 ctx: The context of the agent.
                 request: The request to give credits.
             """
-            if request.amount < 0:
-                raise ValueError("Amount must be positive")
-
             character = ctx.deps.character
             surreal_manager = ctx.deps.surreal_manager
 
@@ -373,48 +370,15 @@ Process this action and call ALL required functions. Do not skip any function ca
 
             if not character:
                 raise ValueError(f"Character {character.id} not found")
+
+            if request.amount < 0 and character.credits + request.amount < 0:
+                raise ValueError("Not enough credits")
 
             character.credits += request.amount
             await character_repository.update(character.id, character.model_dump())
 
             print(
                 f"!!! Give credits: {request.amount}, new credits: {character.credits}"
-            )
-
-            return character.credits
-
-        @self.agent.tool
-        async def take_credits(
-            ctx: RunContext[GMAgentDependencies],
-            request: RequestAddCredits,
-        ) -> int:
-            """
-            Take credits from the character.
-
-            Args:
-                ctx: The context of the agent.
-                request: The request to take credits.
-            """
-            if request.amount < 0:
-                raise ValueError("Amount must be positive")
-
-            character = ctx.deps.character
-            surreal_manager = ctx.deps.surreal_manager
-
-            character_repository = CharacterRepository(surreal_manager)
-            character = await character_repository.get_by_id(character.id)
-
-            if not character:
-                raise ValueError(f"Character {character.id} not found")
-
-            if character.credits + request.amount < 0:
-                raise ValueError("Not enough credits")
-
-            character.credits -= request.amount
-            await character_repository.update(character.id, character.model_dump())
-
-            print(
-                f"!!! Take credits: {request.amount}, new credits: {character.credits}"
             )
 
             return character.credits

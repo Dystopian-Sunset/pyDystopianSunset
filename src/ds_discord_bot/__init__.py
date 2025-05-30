@@ -14,9 +14,15 @@ from .surreal_manager import SurrealManager
 load_dotenv()
 random.seed()
 
+# logging.basicConfig(level=logging.DEBUG)
+
+
 async def _async_main() -> None:
     log_level = os.getenv("DS_LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level)
+
+    # websocket_logger = logging.getLogger("websockets")
+    # websocket_logger.setLevel(logging.WARNING)
 
     discord_logger = logging.getLogger("discord")
     discord_logger.setLevel(logging.INFO)

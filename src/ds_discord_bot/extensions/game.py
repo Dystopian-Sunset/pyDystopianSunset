@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 from ds_common.models.game_session import GameSession
 from ds_common.models.player import Player
 from ds_common.name_generator import NameGenerator
+from ds_common.repository.character import CharacterRepository
 from ds_common.repository.game_session import GameSessionRepository
 from ds_common.repository.player import PlayerRepository
 from ds_discord_bot.surreal_manager import SurrealManager
@@ -45,6 +46,7 @@ class Game(commands.Cog):
 
         player_repository = PlayerRepository(self.surreal_manager)
         game_session_repository = GameSessionRepository(self.surreal_manager)
+        character_repository = CharacterRepository(self.surreal_manager)
 
         if message.channel in self.game_session_category.text_channels:
             if message.channel in self.active_game_channels:
@@ -58,21 +60,29 @@ class Game(commands.Cog):
 
             player = Player.from_member(message.author)
             character = await player_repository.get_active_character(player)
+            character_class = await character_repository.get_character_class(character)
             game_session = await game_session_repository.from_channel(message.channel)
 
-            async with message.channel.typing():
-                response = await self.gm_contexts[message.channel].run(
-                    message.content,
-                    deps=GMAgentDependencies(
-                        db=self.surreal_manager,
-                        game_session=game_session,
-                        player=player,
-                        character=character,
-                    ),
+            if message.content.startswith("!"):
+                self.logger.debug(
+                    f"Command in active game session channel: {message.channel.name}"
                 )
 
-                for chunk in response:
-                    await message.channel.send(chunk)
+            else:
+                async with message.channel.typing():
+                    response = await self.gm_contexts[message.channel].run(
+                        message.content,
+                        deps=GMAgentDependencies(
+                            surreal_manager=self.surreal_manager,
+                            game_session=game_session,
+                            player=player,
+                            character=character,
+                            character_class=character_class,
+                        ),
+                    )
+
+                    for chunk in response:
+                        await message.channel.send(chunk)
 
             self.active_game_channels[message.channel] = datetime.now(timezone.utc)
             await game_session_repository.update_last_active_at(message.channel)
@@ -218,6 +228,7 @@ class Game(commands.Cog):
         player = Player.from_member(member)
         player_repository = PlayerRepository(self.surreal_manager)
         characters = await player_repository.get_characters(player)
+        character_repository = CharacterRepository(self.surreal_manager)
         player_character = await player_repository.get_active_character(player)
 
         if not member.dm_channel:
@@ -363,7 +374,7 @@ class Game(commands.Cog):
             last_active_at=datetime.now(timezone.utc),
         )
 
-        await game_session_repository.insert(game_session)
+        await game_session_repository.upsert(game_session)
         await game_session_repository.add_player(player, game_session)
         await game_session_repository.add_character(player_character, game_session)
 
@@ -377,6 +388,9 @@ class Game(commands.Cog):
 
         async with channel.typing():
             player_character = await player_repository.get_active_character(player)
+            character_class = await character_repository.get_character_class(
+                player_character
+            )
             intro = await self.gm_contexts[channel].run(
                 f"Welcome player: {player_character.name}. Introduce the starting area. Paint a vivid description of the environment.",
                 deps=GMAgentDependencies(
@@ -384,6 +398,7 @@ class Game(commands.Cog):
                     player=player,
                     game_session=game_session,
                     character=player_character,
+                    character_class=character_class,
                 ),
             )
 
@@ -399,7 +414,7 @@ class Game(commands.Cog):
         """
         game_session_repository = GameSessionRepository(self.surreal_manager)
         for player in await game_session_repository.players(session):
-            discord_id = player.id.id
+            discord_id = int(player.id.split(":")[1])
             member = self.bot.guilds[0].get_member(discord_id)
 
             if not member:
@@ -416,7 +431,7 @@ class Game(commands.Cog):
         channel = await self._find_channel(session.name)
 
         history_delete_query = (
-            f"DELETE FROM gm_history WHERE game_session_id == '{session.id.id}';"
+            f"DELETE FROM gm_history WHERE game_session_id == '{session.id}';"
         )
 
         async with self.surreal_manager.get_db() as db:
@@ -566,8 +581,13 @@ class Game(commands.Cog):
         return False
 
     async def _move_member_from_join_channel(
-        self, member: discord.Member, channel: discord.VoiceChannel | None = None
+        self,
+        member: discord.Member | discord.User,
+        channel: discord.VoiceChannel | None = None,
     ):
+        if isinstance(member, discord.User):
+            return
+
         if member.voice:
             if member.voice.channel == self.game_session_join_channel:
                 self.logger.debug(

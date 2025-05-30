@@ -1,17 +1,15 @@
 import random
 from datetime import datetime, timezone
 
-from pydantic import Field
-from surrealdb import RecordID
+from pydantic import ConfigDict, Field
 
 from ds_common.models.surreal_model import BaseSurrealModel
 
 
 class Character(BaseSurrealModel):
-    id: RecordID = Field(
-        primary_key=True,
-        default_factory=lambda: BaseSurrealModel.create_id("character"),
-    )
+    """
+    Player character model
+    """
     name: str
     level: int
     exp: int
@@ -23,12 +21,15 @@ class Character(BaseSurrealModel):
     created_at: datetime
     last_active: datetime
 
+    model_config = ConfigDict(table_name="character")
+
     @classmethod
-    async def generate_character(
+    def generate_character(
         cls,
         name: str,
     ) -> "Character":
         return cls(
+            id=cls.create_id("character"),
             name=name,
             level=1,
             exp=0,

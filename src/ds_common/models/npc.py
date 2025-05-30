@@ -1,17 +1,12 @@
 import random
 from datetime import datetime, timezone
 
-from pydantic import Field
-from surrealdb import RecordID
+from pydantic import ConfigDict, Field
 
 from ds_common.models.surreal_model import BaseSurrealModel
 
 
 class NPC(BaseSurrealModel):
-    id: RecordID = Field(
-        primary_key=True,
-        default_factory=lambda: BaseSurrealModel.create_id("npc"),
-    )
     name: str
     race: str
     background: str
@@ -27,6 +22,8 @@ class NPC(BaseSurrealModel):
     shadow_level: int
     created_at: datetime
     last_active: datetime
+
+    model_config = ConfigDict(table_name="npc")
 
     @classmethod
     async def generate_npc(

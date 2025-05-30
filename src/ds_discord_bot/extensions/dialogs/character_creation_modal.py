@@ -55,13 +55,13 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
             character_class = await character_class_repo.get_by_id(
                 self.character_class_id
             )
-            character = await Character.generate_character(
+            character = Character.generate_character(
                 name=self.character_name.value,
             )
 
             player = Player.from_member(interaction.user)
 
-            await character_repo.insert(character)
+            await character_repo.upsert(character)
             await character_repo.set_character_class(character, character_class)
             await player_repo.add_character(player, character)
 

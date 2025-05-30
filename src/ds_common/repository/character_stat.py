@@ -7,6 +7,5 @@ from ds_discord_bot.surreal_manager import SurrealManager
 
 class CharacterStatRepository(BaseRepository[CharacterStat]):
     def __init__(self, surreal_manager: SurrealManager):
-        super().__init__(surreal_manager, CharacterStat)
-        self.table_name = "character_stat"
+        super().__init__(surreal_manager, CharacterStat, "character_stats")
         self.logger: logging.Logger = logging.getLogger(__name__)

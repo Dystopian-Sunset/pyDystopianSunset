@@ -11,8 +11,7 @@ from ds_discord_bot.surreal_manager import SurrealManager
 
 class GameSessionRepository(BaseRepository[GameSession]):
     def __init__(self, surreal_manager: SurrealManager):
-        super().__init__(surreal_manager, GameSession)
-        self.table_name = "game_session"
+        super().__init__(surreal_manager, GameSession, "game_session")
         self.logger: logging.Logger = logging.getLogger(__name__)
 
     

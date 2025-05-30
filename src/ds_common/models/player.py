@@ -1,17 +1,18 @@
 from datetime import datetime, timezone
 
 from discord import Member
-from pydantic import Field
+from pydantic import ConfigDict
 from surrealdb import RecordID
 
 from ds_common.models.surreal_model import BaseSurrealModel
 
 
 class Player(BaseSurrealModel):
-    id: RecordID = Field(
-        primary_key=True,
-        default_factory=lambda: BaseSurrealModel.create_id("player"),
-    )
+    """
+    Player model
+
+    A player is a Discord user who is registered in the game.
+    """
     global_name: str
     display_name: str
     display_avatar: str | None
@@ -19,6 +20,8 @@ class Player(BaseSurrealModel):
     last_active: datetime
     is_active: bool = True
     is_banned: bool = False
+
+    model_config = ConfigDict(table_name="player")
 
     @classmethod
     def from_member(

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import traceback
 from contextlib import asynccontextmanager
@@ -69,10 +68,3 @@ class SurrealManager:
                 await db.close()
             self.db = None
             raise
-
-    def __del__(self) -> None:
-        if self.db and isinstance(self.db, AsyncWsSurrealConnection):
-            self.logger.debug("Closing SurrealDB Websocket connection...")
-            asyncio.get_running_loop().run_until_complete(self.db.close())
-            
-            

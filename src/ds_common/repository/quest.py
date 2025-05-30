@@ -8,8 +8,7 @@ from ds_discord_bot.surreal_manager import SurrealManager
 
 class QuestRepository(BaseRepository[Quest]):
     def __init__(self, surreal_manager: SurrealManager):
-        self.surreal_manager = surreal_manager
-        super().__init__(surreal_manager.db, Quest)
+        super().__init__(surreal_manager, Quest, "quest")
         self.logger: logging.Logger = logging.getLogger(__name__)
 
     async def get_character_quests(self, character: Character) -> list[Quest] | None:

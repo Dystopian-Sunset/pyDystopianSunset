@@ -9,12 +9,11 @@ from ds_discord_bot.surreal_manager import SurrealManager
 
 class PlayerRepository(BaseRepository[Player]):
     def __init__(self, surreal_manager: SurrealManager):
-        super().__init__(surreal_manager, Player)
-        self.table_name = "player"
+        super().__init__(surreal_manager, Player, "player")
         self.logger: logging.Logger = logging.getLogger(__name__)
 
     async def get_characters(self, player: Player) -> list["Character"]:
-        query = f"SELECT ->has_character->(?).* AS characters FROM {player.id};"
+        query = f"SELECT ->player_has_character->(?).* AS characters FROM {player.id};"
         self.logger.debug("Query: %s", query)
 
         async with self.surreal_manager.get_db() as db:
@@ -31,11 +30,7 @@ class PlayerRepository(BaseRepository[Player]):
     async def add_character(
         self, player: Player, character: "Character"
     ) -> None:
-        async with self.surreal_manager.get_db() as db:
-            await db.delete(f"{player.id}->has_character")
-        self.logger.debug("Deleted active has_character relationship")
-
-        query = f"RELATE {player.id}->has_character->{character.id};"
+        query = f"RELATE {player.id}->player_has_character->{character.id};"
         self.logger.debug("Query: %s", query)
 
         async with self.surreal_manager.get_db() as db:
@@ -46,7 +41,7 @@ class PlayerRepository(BaseRepository[Player]):
         self, player: Player, character: "Character"
     ) -> None:
         async with self.surreal_manager.get_db() as db:
-            await db.delete(f"{player.id}->has_character->{character.id}")
+            await db.delete(f"{player.id}->player_has_character->{character.id}")
         self.logger.debug("Deleted character: %s", character)
 
     async def get_active_character(self, player: Player) -> "Character | None":

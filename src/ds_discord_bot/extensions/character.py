@@ -87,6 +87,14 @@ class Character(commands.Cog):
                 ephemeral=True,
             )
         else:
+            game_session = await character_repository.get_game_session(characters[0])
+            if game_session:
+                await interaction.response.send_message(
+                    "You are currently in a game session. Please leave it with `/game end` before deleting a character.",
+                    ephemeral=True,
+                )
+                return
+
             # TODO: Add a confirmation modal type DELETE Name to confirm deletion
             for character in characters:
                 if character.name.lower() == name.lower():

@@ -86,7 +86,7 @@ class Welcome(commands.Cog):
 
     async def sync_user(self, user: Member | User, is_active: bool = True):
         player_repo = PlayerRepository(self.surreal_manager)
-        player = await player_repo.get_by_id(user.id)
+        player = await player_repo.get_by_id(Player.create_id(user.id))
 
         if not player:
             player = Player.from_member(user, is_active)

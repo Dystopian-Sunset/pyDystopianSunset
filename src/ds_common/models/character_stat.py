@@ -1,12 +1,9 @@
-
-from pydantic import Field
-from surrealdb import RecordID
+from pydantic import ConfigDict
 
 from ds_common.models.surreal_model import BaseSurrealModel
 
 
 class CharacterStat(BaseSurrealModel):
-    id: RecordID = Field(primary_key=True)
     name: str
     abbr: str
     description: str
@@ -14,3 +11,5 @@ class CharacterStat(BaseSurrealModel):
     max_value: int
     is_primary: bool
     is_mutable: bool
+
+    model_config = ConfigDict(table_name="character_stat")

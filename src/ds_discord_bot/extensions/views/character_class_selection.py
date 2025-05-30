@@ -29,8 +29,7 @@ class CharacterClassSelection(Select):
                 label=character_class.name,
                 description=ellipsize(character_class.description),
                 emoji=character_class.emoji,
-                value=str(character_class.id),
-                default=True if character_class.id == 1 else False,
+                value=character_class.id,
             )
             for character_class in character_classes
         ]
