@@ -49,7 +49,7 @@ class Moderation(commands.Cog):
             player = await player_repo.get_by_id(user.id)
             if player:
                 player.is_active = False
-                player.last_active = datetime.now(timezone.utc)
+                player.last_active_at = datetime.now(timezone.utc)
                 await player_repo.upsert(player)
                 self.logger.debug("Deactivated player %s", player)
             await interaction.followup.send(f"Banned {user}")
@@ -70,7 +70,7 @@ class Moderation(commands.Cog):
             player = await player_repo.get_by_id(user.id)
             if player:
                 player.is_active = True
-                player.last_active = datetime.now(timezone.utc)
+                player.last_active_at = datetime.now(timezone.utc)
                 await player_repo.upsert(player)
                 self.logger.debug("Activated player %s", player)
             await interaction.followup.send(f"Unbanned {user}")

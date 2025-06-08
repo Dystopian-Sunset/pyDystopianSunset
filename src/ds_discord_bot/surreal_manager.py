@@ -1,12 +1,15 @@
 import logging
 import traceback
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 from surrealdb import AsyncHttpSurrealConnection, AsyncSurreal, AsyncWsSurrealConnection
 
 
 class SurrealManager:
-    def __init__(self, url: str, namespace: str, database: str, username: str, password: str):
+    def __init__(
+        self, url: str, namespace: str, database: str, username: str, password: str
+    ):
         self.url: str = url
         self.username: str = username
         self.password: str = password
@@ -18,7 +21,9 @@ class SurrealManager:
         self.logger.debug("Initializing SurrealDB manager...")
 
     @classmethod
-    async def create(cls, url: str, namespace: str, database: str, username: str, password: str) -> "SurrealManager":
+    async def create(
+        cls, url: str, namespace: str, database: str, username: str, password: str
+    ) -> "SurrealManager":
         """
         Create a new SurrealDB manager instance
         """
@@ -26,16 +31,20 @@ class SurrealManager:
         surreal_manager = cls(url, namespace, database, username, password)
         await surreal_manager._create_db_session()
         return surreal_manager
-    
+
     @asynccontextmanager
-    async def get_db(self) -> AsyncWsSurrealConnection | AsyncHttpSurrealConnection | None:
+    async def get_db(
+        self,
+    ) -> AsyncGenerator[AsyncWsSurrealConnection | AsyncHttpSurrealConnection, None]:
         if not self.db:
-            self.db = await self._create_db_session()
+            await self._create_db_session()
 
         try:
             yield self.db
         except Exception:
-            self.logger.error(f"Error while using SurrealDB connection: {traceback.format_exc()}")
+            self.logger.error(
+                f"Error while using SurrealDB connection: {traceback.format_exc()}"
+            )
             if self.db and isinstance(self.db, AsyncWsSurrealConnection):
                 self.logger.debug("Closing SurrealDB Websocket connection...")
                 await self.db.close()
@@ -57,12 +66,18 @@ class SurrealManager:
                 }
             )
 
-            self.logger.debug("Using SurrealDB namespace: %s, database: %s", self.namespace, self.database)
+            self.logger.debug(
+                "Using SurrealDB namespace: %s, database: %s",
+                self.namespace,
+                self.database,
+            )
             await db.use(self.namespace, self.database)
 
             self.db = db
         except Exception:
-            self.logger.error(f"Failed to create SurrealDB connection: {traceback.format_exc()}")
+            self.logger.error(
+                f"Failed to create SurrealDB connection: {traceback.format_exc()}"
+            )
             if db and isinstance(db, AsyncWsSurrealConnection):
                 self.logger.debug("Closing SurrealDB Websocket connection...")
                 await db.close()

@@ -21,14 +21,14 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
     def __init__(
         self,
         surreal_manager: SurrealManager,
-        character_class_id: int | str | RecordID,
+        character_class_id: RecordID,
         character_creation_channel: discord.TextChannel | None = None,
     ):
         super().__init__()
 
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.surreal_manager = surreal_manager
-        self.character_class_id = character_class_id
+        self.character_class_id = str(character_class_id)
         self.character_creation_channel = character_creation_channel
 
     @override
@@ -59,7 +59,10 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
                 name=self.character_name.value,
             )
 
-            player = Player.from_member(interaction.user)
+            player = await player_repo.get_by_discord_id(interaction.user.id)
+            if not player:
+                player = Player.from_member(interaction.user)
+                await player_repo.upsert(player)
 
             await character_repo.upsert(character)
             await character_repo.set_character_class(character, character_class)
@@ -88,7 +91,7 @@ class CharacterCreationModal(ui.Modal, title="Character Creation"):
 
         except Exception as e:
             # Log the error
-            self.logger.error(f"Error in character creation: {str(e)}", exc_info=True)
+            self.logger.error(f"Error in character creation: {e}", exc_info=True)
 
             # Send error message to user
             if interaction.response.is_done():

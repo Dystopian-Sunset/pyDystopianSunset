@@ -75,7 +75,7 @@ class DSBot(commands.AutoShardedBot):
         """
 
         self.logger.info("Loading game settings...")
-        game_settings_id = GameSettings.create_id(1)
+        game_settings_id = GameSettings.create_id("default")
         self.game_settings = await GameSettingsRepository(
             self.surreal_manager
         ).get_by_id(game_settings_id)

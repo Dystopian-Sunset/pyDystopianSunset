@@ -5,12 +5,11 @@ description = "Discord bot for Dystopia Sunset"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aiofiles>=24.1.0",
     "discord-py[voice]>=2.5.2",
     "dotenv>=0.9.9",
-    "nats-py>=2.10.0",
     "pydantic>=2.11.4",
     "pydantic-ai>=0.2.6",
-    "redis>=6.1.0",
     "surrealdb",
 ]
 

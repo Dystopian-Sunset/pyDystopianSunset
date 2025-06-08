@@ -4,7 +4,6 @@ import discord
 from discord import TextChannel, app_commands
 from discord.ext import commands
 
-from ds_common.models.player import Player
 from ds_common.repository.character import CharacterRepository
 from ds_common.repository.character_class import CharacterClassRepository
 from ds_common.repository.player import PlayerRepository
@@ -42,8 +41,10 @@ class Character(commands.Cog):
 
     @character.command(name="create", description="Create a new character to play as")
     async def create_character(self, interaction: discord.Interaction):
-        player = Player.from_member(interaction.user)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         player_repository = PlayerRepository(self.surreal_manager)
+        player = await player_repository.get_by_discord_id(interaction.user.id)
 
         if not interaction.user.dm_channel:
             await interaction.user.create_dm()
@@ -62,22 +63,23 @@ class Character(commands.Cog):
             color=discord.Color.orange(),
         )
 
+        character_class_repo = CharacterClassRepository(self.surreal_manager)
+        character_classes = await character_class_repo.get_all()
+
         view = CharacterClassSelectionView(
             surreal_manager=self.surreal_manager,
-            character_classes=await CharacterClassRepository(
-                self.surreal_manager
-            ).get_all(),
+            character_classes=character_classes,
             character_creation_channel=self.character_creation_channel,
         )
 
-        await interaction.response.defer(ephemeral=True, thinking=True)
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @character.command(name="delete", description="Delete a character")
     @app_commands.describe(name="The name of the character to delete")
     async def delete_character(self, interaction: discord.Interaction, name: str):
-        player = Player.from_member(interaction.user)
         player_repository = PlayerRepository(self.surreal_manager)
+        player = await player_repository.get_by_discord_id(interaction.user.id)
+
         character_repository = CharacterRepository(self.surreal_manager)
         characters = await player_repository.get_characters(player)
 
@@ -112,8 +114,9 @@ class Character(commands.Cog):
     async def list_characters(self, interaction: discord.Interaction):
         self.logger.info("Character list: %s", interaction.user)
 
-        player = Player.from_member(interaction.user)
         player_repository = PlayerRepository(self.surreal_manager)
+        player = await player_repository.get_by_discord_id(interaction.user.id)
+
         character_repository = CharacterRepository(self.surreal_manager)
         characters = await player_repository.get_characters(player)
         if not characters:
@@ -149,9 +152,8 @@ class Character(commands.Cog):
     async def use_character(
         self, interaction: discord.Interaction, name: str | None = None
     ):
-        player = Player.from_member(interaction.user)
         player_repository = PlayerRepository(self.surreal_manager)
-        character_repository = CharacterRepository(self.surreal_manager)
+        player = await player_repository.get_by_discord_id(interaction.user.id)
 
         session = await player_repository.get_game_session(player)
         if session:
@@ -189,6 +191,7 @@ class Character(commands.Cog):
                 )
                 return
 
+            character_repository = CharacterRepository(self.surreal_manager)
             view = CharacterSelectionView(
                 surreal_manager=self.surreal_manager,
                 characters=[
@@ -227,11 +230,12 @@ class Character(commands.Cog):
 
     @character.command(name="current", description="Get the current character")
     async def current_character(self, interaction: discord.Interaction):
-        player = Player.from_member(interaction.user)
         player_repository = PlayerRepository(self.surreal_manager)
-        character_repository = CharacterRepository(self.surreal_manager)
+        player = await player_repository.get_by_discord_id(interaction.user.id)
+
         active_character = await player_repository.get_active_character(player)
         if active_character:
+            character_repository = CharacterRepository(self.surreal_manager)
             character_class = await character_repository.get_character_class(
                 active_character
             )

@@ -1,4 +1,3 @@
-
 from pydantic import ConfigDict, Field
 
 from ds_common.models.surreal_model import BaseSurrealModel

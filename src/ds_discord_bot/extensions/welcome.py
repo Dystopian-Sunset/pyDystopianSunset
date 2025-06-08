@@ -41,7 +41,7 @@ class Welcome(commands.Cog):
         self.logger.info("Member left: %s", member)
 
         player_repo = PlayerRepository(self.surreal_manager)
-        player = await player_repo.get_by_id(member.id)
+        player = await player_repo.get_by_discord_id(member.id)
         character_repo = CharacterRepository(self.surreal_manager)
         game_session_repo = GameSessionRepository(self.surreal_manager)
         if player:
@@ -61,7 +61,7 @@ class Welcome(commands.Cog):
                 self.logger.debug("Deleted character %s", character)
 
             player.is_active = False
-            player.last_active = datetime.now(timezone.utc)
+            player.last_active_at = datetime.now(timezone.utc)
             await player_repo.upsert(player)
             self.logger.debug("Deactivated player %s", player)
 
@@ -86,7 +86,7 @@ class Welcome(commands.Cog):
 
     async def sync_user(self, user: Member | User, is_active: bool = True):
         player_repo = PlayerRepository(self.surreal_manager)
-        player = await player_repo.get_by_id(Player.create_id(user.id))
+        player = await player_repo.get_by_discord_id(user.id)
 
         if not player:
             player = Player.from_member(user, is_active)
@@ -95,8 +95,10 @@ class Welcome(commands.Cog):
             self.logger.debug(f"Found existing player {player}")
 
         player.is_active = is_active
-        player.last_active = datetime.now(timezone.utc)
-        await player_repo.upsert(player)
+        player.last_active_at = datetime.now(timezone.utc)
+        player = await player_repo.upsert(player)
+
+        self.logger.debug(f"Synced player {player}")
 
         if player.is_banned:
             await user.ban()

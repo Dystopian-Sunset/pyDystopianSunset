@@ -10,6 +10,7 @@ class Character(BaseSurrealModel):
     """
     Player character model
     """
+
     name: str
     level: int
     exp: int
@@ -19,7 +20,7 @@ class Character(BaseSurrealModel):
     renown: int
     shadow_level: int
     created_at: datetime
-    last_active: datetime
+    last_active_at: datetime
 
     model_config = ConfigDict(table_name="character")
 
@@ -29,7 +30,6 @@ class Character(BaseSurrealModel):
         name: str,
     ) -> "Character":
         return cls(
-            id=cls.create_id("character"),
             name=name,
             level=1,
             exp=0,
@@ -46,5 +46,5 @@ class Character(BaseSurrealModel):
             renown=0,
             shadow_level=0,
             created_at=datetime.now(timezone.utc),
-            last_active=datetime.now(timezone.utc),
+            last_active_at=datetime.now(timezone.utc),
         )

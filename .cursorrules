@@ -11,9 +11,6 @@ This project contains the components for a text adventure game. The game is call
 - Podman (Docker)
 - Discord API (discord.py)
 - SurrealDB (surrealdb surrealdb.py)
-- SQLModel (sqlmodel)
-- Nats
-- DragonflyDB - Redis-like Key-value store
 - Avalanche or SUI are potential blockchains for the game economy
 
 # Project Structure
@@ -39,9 +36,19 @@ The project is structured as follows:
 - Each service, and component MUST have documentation in the form of concise comments and documentation in the form of markdown files
 - There MUST be at least a README.md file in the root of each service, and component and it MUST contain a description of the component, its purpose, and how to use it
 
+# Style Guidelines
+
+- Use snake_case for variable and function names
+- Use PascalCase for class names
+- Use camelCase for parameter names
+- Use snake_case for file names
+- Use snake_case for directory names
+- Use f strings for string formatting
+- Use strong typing best practices
+- Use async/await for asynchronous code
+
 # Important Repositories
 
 - [discord.py](https://github.com/Rapptz/discord.py)
 - [surrealdb](https://github.com/surrealdb/surrealdb)
 - [surrealdb.py](https://github.com/surrealdb/surrealdb.py)
-- [sqlmodel](https://github.com/tiangolo/sqlmodel)

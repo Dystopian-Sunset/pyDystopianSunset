@@ -17,11 +17,11 @@ class CharacterClassRepository(BaseRepository[CharacterClass]):
 FROM {self.table_name} 
 WHERE id = {character_class.id}
 """
-        self.logger.debug("Query: %s", query)
+        self.logger.debug(f"Query: {query}")
 
         async with self.surreal_manager.get_db() as db:
             result = await db.select(query)
-        self.logger.debug("Result: %s", result)
+        self.logger.debug(f"Result: {result}")
 
         if not result:
             self.logger.debug("No stats found")

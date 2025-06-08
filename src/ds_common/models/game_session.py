@@ -10,12 +10,14 @@ class GameSession(BaseSurrealModel):
     """
     Game session model
     """
+
     name: str = Field(
         default_factory=NameGenerator.generate_cyberpunk_channel_name,
         description="Name of the game session",
     )
-    channel_id: int = Field(
-        description="ID of the channel where the game session is taking place"
+    channel_id: int | None = Field(
+        default=None,
+        description="ID of the channel where the game session is taking place",
     )
     max_players: int = Field(
         default=4, description="Max number of players allowed in the game"

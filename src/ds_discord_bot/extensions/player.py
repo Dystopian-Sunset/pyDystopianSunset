@@ -19,14 +19,6 @@ class Player(commands.Cog):
 
     player = app_commands.Group(name="player", description="Player commands")
 
-    @player.command(name="sync", description="Sync users")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def sync(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-        await self.bot.sync_users()
-        await interaction.followup.send("Synced users")
-
     @player.command(name="help", description="Get help with player commands")
     async def help(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)

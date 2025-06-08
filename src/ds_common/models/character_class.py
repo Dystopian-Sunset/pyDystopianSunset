@@ -7,6 +7,7 @@ class CharacterClass(BaseSurrealModel):
     """
     Character class model
     """
+
     name: str
     description: str
     emoji: str

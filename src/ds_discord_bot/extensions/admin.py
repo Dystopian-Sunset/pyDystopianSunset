@@ -17,9 +17,7 @@ class Admin(commands.Cog):
     async def on_ready(self):
         self.logger.info("Admin cog loaded")
 
-    admin = app_commands.Group(
-        name="admin", description="Admin commands"
-    )
+    admin = app_commands.Group(name="admin", description="Admin commands")
 
     @commands.command(name="sync-commands", description="Sync commands")
     @commands.has_permissions(administrator=True)
@@ -59,7 +57,9 @@ class Admin(commands.Cog):
                 if command.name == "help":
                     continue
 
-                help_text += f"`/{command.parent.name} {command.name}` - {command.description}\n"
+                help_text += (
+                    f"`/{command.parent.name} {command.name}` - {command.description}\n"
+                )
 
         embed = discord.Embed(
             title="Admin command help",

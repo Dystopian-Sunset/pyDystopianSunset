@@ -13,6 +13,6 @@ class GameSettingsRepository(BaseRepository[GameSettings]):
         self.logger: logging.Logger = logging.getLogger(__name__)
 
     async def seed_db(self) -> GameSettings:
-        game_settings = GameSettings(id=RecordID(self.table_name, 1))
+        game_settings = GameSettings(id=RecordID(self.table_name, "default"))
         await self.upsert(game_settings)
         return game_settings

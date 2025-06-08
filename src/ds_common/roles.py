@@ -13,6 +13,5 @@ REQUIRED_ROLES = [
     "serpent's embrace",
     "berserking bruin",
     "citizen",
-    "veteran"
+    "veteran",
 ]
-    
