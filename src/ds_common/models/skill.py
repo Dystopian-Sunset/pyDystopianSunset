@@ -1,13 +1,14 @@
-from datetime import datetime, timezone
+from sqlmodel import Field
 
-from pydantic import ConfigDict, Field
-
-from ds_common.models.surreal_model import BaseSurrealModel
+from ds_common.models.base_model import BaseSQLModel
 
 
-class Skill(BaseSurrealModel):
-    name: str
-    description: str
-    created_at: Field(default_factory=lambda: datetime.now(timezone.utc))
+class Skill(BaseSQLModel, table=True):
+    """
+    Skill model
+    """
 
-    model_config = ConfigDict(table_name="skill")
+    __tablename__ = "skills"
+
+    name: str = Field(description="Skill name")
+    description: str = Field(description="Skill description")

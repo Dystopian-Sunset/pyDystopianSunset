@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    # Prometheus uses host network mode, so connect via host.docker.internal
+    # This allows Grafana (in container) to reach Prometheus on the host
+    url: http://localhost:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+

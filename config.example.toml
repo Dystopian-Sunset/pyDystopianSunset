@@ -1,0 +1,215 @@
+# Configuration file for Dystopian Sunset Discord Bot
+# Copy this file to config.toml and customize as needed
+# Environment variables will override values in this file
+#
+# ⚠️  SECURITY WARNING ⚠️
+# Do NOT store secrets (tokens, passwords, API keys) in config.toml if this file
+# will be committed to version control. Use environment variables (.env file) instead.
+# Secrets in config.toml are only safe if the file is in .gitignore.
+# 
+# Recommended: Store non-sensitive settings in config.toml, secrets in .env file.
+
+[discord]
+# Discord Bot Token (required)
+# ⚠️  SECURITY: This is a SECRET. Prefer setting DS_DISCORD_TOKEN in .env file instead.
+# Get from: https://discord.com/developers/applications
+token = "your_discord_bot_token_here"
+
+# Discord Application ID (optional, for slash commands)
+app_id = ""
+
+# Discord Application Public Key (optional, for interactions)
+# ⚠️  SECURITY: This is a SECRET. Prefer setting DS_DISCORD_APP_PUBLIC_KEY in .env file instead.
+app_public_key = ""
+
+# Comma-separated list of extensions to load (optional, loads all if empty)
+# Available: ADMIN, CHARACTER, GAME, GENERAL, MODERATION, PLAYER, WELCOME
+extensions = []
+
+[postgres]
+# PostgreSQL connection settings
+host = "localhost"
+port = 5432
+database = "game"
+user = "postgres"
+# ⚠️  SECURITY: This is a SECRET. Prefer setting DS_POSTGRES_PASSWORD in .env file instead.
+password = "postgres"
+
+# Connection pool settings
+pool_size = 5
+max_overflow = 10
+
+# Enable SQL query logging (useful for debugging)
+echo = false
+
+[game]
+# Game session category name in Discord
+session_category_name = "Speakeasy"
+
+# Game session join channel name
+session_join_channel_name = "Join-to-Play"
+
+# Service announcements channel name (optional, for global status updates)
+# If not set or channel doesn't exist, service announcements will only be sent via DM to active players
+service_announcements_channel_name = "📟-service-announcements"
+
+# Rules channel name (for reaction-based role gating)
+rules_channel_name = "📜-rules"
+
+# Game name (used in UI elements, prompts, welcome messages, etc.)
+# This allows re-theming the bot for different game worlds
+game_name = "Quillian Undercity"
+
+# Game subtitle (used in UI elements like character widget footers)
+# Optional, can be empty string if not needed
+game_subtitle = "Shadows of the Syndicate"
+
+[role_management]
+# Player role name (renamed from citizen_role_name)
+# This is the base role that players receive after completing onboarding
+# Default: "citizen" (can be changed for different themes)
+player_role_name = "citizen"
+
+# Message IDs that require reactions to gain the player role
+# Users must react to ALL of these messages to receive the role
+player_role_message_ids = [
+    1454151158640939293,  # "React below to acknowledge the Code and gain access"
+    1454151450425823263,  # "IMPORTANT: AI-GENERATED CONTENT"
+]
+
+# GM role name (for game master permissions)
+gm_role_name = "GM"
+
+# Moderator role name (for channel moderation)
+moderator_role_name = "moderator"
+
+[ai.gm]
+# AI model name for the Game Master
+# For Ollama: "gpt-oss:latest", "gemma3:latest", "llama3:latest", etc.
+# For OpenAI: "gpt-4", "gpt-3.5-turbo", etc.
+model_name = "gpt-oss"
+
+# Base URL for the AI model API
+# For local Ollama: "http://localhost:11434/v1"
+# For OpenAI: "https://api.openai.com/v1"
+base_url = "http://localhost:11434/v1"
+
+# OpenAI API Key (optional, only needed if using OpenAI's API)
+# ⚠️  SECURITY: This is a SECRET. Prefer setting DS_AI_GM_API_KEY in .env file instead.
+# Not needed if using local services like Ollama (set base_url instead)
+# If not set and using OpenAI, will fall back to OPENAI_API_KEY environment variable
+api_key = ""
+
+# Path to custom system prompt file (optional, legacy mode)
+# If empty, uses default prompt in extensions/prompts/{theme}/gm_base.md
+system_prompt_path = ""
+
+# Prompt theme/path for modular prompts (optional)
+# Can be a theme name (e.g., "dystopian_sunset") which looks in extensions/prompts/{theme}/
+# Or a full absolute path to a prompt directory
+# Default: "dystopian_sunset"
+# This allows running multiple themed bots or re-theming without code changes
+prompt_theme = "dystopian_sunset"
+
+[ai.embedding]
+# Base URL for embedding API (optional, for local services like Ollama)
+# If using Ollama locally: "http://localhost:11434/v1"
+# If using OpenAI: leave empty (uses OpenAI's default API endpoint)
+base_url = "http://localhost:11434/v1"
+
+# OpenAI API Key (optional, only needed if using OpenAI's embedding API)
+# ⚠️  SECURITY: This is a SECRET. Prefer setting DS_AI_EMBEDDING_API_KEY in .env file instead.
+# Not needed if using local services like Ollama (set base_url instead)
+api_key = ""
+
+# Embedding model for memory system (semantic search of stored memories)
+# For OpenAI: "text-embedding-3-small", "text-embedding-3-large"
+# For Ollama: "nomic-embed-text" (768 dimensions)
+# ⚠️  IMPORTANT: Changing the model/dimensions requires a database schema migration!
+#     Use the utility script: python scripts/manage_embedding_model.py
+#     This will update the schema and regenerate embeddings if needed.
+model = "nomic-embed-text"
+
+# Embedding dimensions for memory system (must match database schema)
+# ⚠️  IMPORTANT: This MUST match the database schema. Changing this requires:
+#     1. Running a database migration to update vector column dimensions
+#     2. Regenerating all existing embeddings (they will be incompatible)
+#     Use the utility script: python scripts/manage_embedding_model.py
+# Common dimensions:
+#   nomic-embed-text: 768
+#   text-embedding-3-small: 1536
+#   text-embedding-3-large: 3072
+dimensions = 768
+
+[redis]
+# Redis connection URL (optional, for caching embeddings)
+# Format: "redis://localhost:6379" or "redis://user:password@host:port"
+# ⚠️  SECURITY: If URL contains a password, prefer setting DS_REDIS_URL in .env file instead.
+url = "redis://localhost:6379"
+
+# Redis database number for prompt analyzer embeddings (default: 0)
+# Separate databases allow independent cache management for different embedding use cases
+db_prompt_analyzer = 0
+
+# Redis database number for memory system embeddings (default: 1)
+# Memory embeddings include: episode summaries, world memories, semantic search queries
+db_memory = 1
+
+[prompt_analyzer]
+# Enable AI-based intent classification
+use_ai = true
+
+# AI confidence threshold for classification (0.0 to 1.0)
+ai_threshold = 0.7
+
+# Use AI to validate keyword matches
+ai_validate = true
+
+# Embedding model for prompt analyzer (input classification)
+# For OpenAI: "text-embedding-3-small", "text-embedding-3-large"
+# For Ollama: "nomic-embed-text" (768 dimensions)
+# NOTE: Prompt analyzer embeddings are not stored in the database, so changing
+#       this model/dimensions does NOT require a schema migration.
+embedding_model = "nomic-embed-text"
+
+# Embedding dimensions for prompt analyzer
+# NOTE: These embeddings are only used for classification and are not stored,
+#       so dimensions can be changed without schema updates.
+# nomic-embed-text: 768
+# text-embedding-3-small: 1536
+# text-embedding-3-large: 3072
+embedding_dimensions = 768
+
+# Use keywords only, disable AI
+keywords_only = false
+
+# Use AI only as fallback when keywords fail
+ai_fallback_only = false
+
+[conversation_classifier]
+# Enable conversation actionability classification
+# Determines if messages require GM involvement or are player-to-player chat
+enabled = true
+
+# AI confidence threshold for classification (0.0 to 1.0)
+# Messages below this threshold are treated as ambiguous
+ai_threshold = 0.7
+
+# Use AI-based classification (requires embedding service)
+use_ai = true
+
+# Use keywords only, disable AI
+keywords_only = false
+
+# Minimum confidence to skip GM processing for player_chat
+# If player_chat confidence >= this, skip GM entirely
+skip_threshold = 0.8
+
+# Note: Game mechanics settings (character stats, memory compression, etc.)
+# have been moved to the database (game_settings table) for real-time configuration.
+# These can be updated via database queries or admin commands without restarting the bot.
+
+[logging]
+# Log level: DEBUG, INFO, WARNING, ERROR
+level = "INFO"
+

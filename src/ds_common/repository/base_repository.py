@@ -1,107 +1,254 @@
 import logging
-from typing import Any, Generic, TypeVar
+from collections.abc import Awaitable, Callable
+from datetime import UTC
+from typing import Any, TypeVar
+from uuid import UUID
 
-from surrealdb.data.types.record_id import RecordID
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
-from ds_common.models.surreal_model import BaseSurrealModel
-from ds_discord_bot.surreal_manager import SurrealManager
+from ds_common.models.base_model import BaseSQLModel
+from ds_discord_bot.postgres_manager import PostgresManager
 
-T = TypeVar("T", bound=BaseSurrealModel)
+T = TypeVar("T", bound=BaseSQLModel)
+R = TypeVar("R")
 
 
-class BaseRepository(Generic[T]):
+class BaseRepository[T]:
+    """
+    Base repository class using SQLModel/SQLAlchemy ORM.
+
+    Provides common CRUD operations for all models.
+    """
+
     def __init__(
         self,
-        surreal_manager: SurrealManager,
+        postgres_manager: PostgresManager,
         model_class: type[T],
-        table_name: str | None = None,
     ):
-        self.logger: logging.Logger = logging.getLogger(__name__)
-        self.surreal_manager: SurrealManager = surreal_manager
-        self.model_class: type[T] = model_class
-        self.table_name: str = table_name or (
-            model_class.model_config.get("table_name") or model_class.__name__.lower()
-        )
+        """
+        Initialize the repository.
 
-    async def get_by_(
-        self, field: str, value: Any, case_sensitive: bool = True
+        Args:
+            postgres_manager: PostgreSQL manager for database sessions
+            model_class: The SQLModel class this repository manages
+        """
+        self.logger: logging.Logger = logging.getLogger(__name__)
+        self.postgres_manager: PostgresManager = postgres_manager
+        self.model_class: type[T] = model_class
+
+    async def _with_session(
+        self,
+        func: Callable[[AsyncSession], Awaitable[R]],
+        session: AsyncSession | None = None,
+        read_only: bool = False,
+    ) -> R:
+        """
+        Execute a function with either the provided session or a new one.
+
+        This utility method handles the common pattern of:
+        - If session is provided, use it directly
+        - If session is None, create a new session from postgres_manager
+        - If read_only is True, use read replica if available
+
+        Args:
+            func: Async function that takes an AsyncSession and returns a result
+            session: Optional database session to use
+            read_only: If True and session is None, use read replica for read operations
+
+        Returns:
+            Result from the function execution
+        """
+        if session:
+            return await func(session)
+        async with self.postgres_manager.get_session(read_only=read_only) as sess:
+            return await func(sess)
+
+    async def get_by_field(
+        self,
+        field: str,
+        value: Any,
+        case_sensitive: bool = True,
+        session: AsyncSession | None = None,
+        read_only: bool = True,
     ) -> T | None:
-        if field not in self.model_class.model_fields.keys():
+        """
+        Get a model by a field value.
+
+        Args:
+            field: Field name to search by
+            value: Value to search for
+            case_sensitive: Whether the search should be case sensitive
+            session: Optional database session (uses manager's session if not provided)
+            read_only: If True and session is None, use read replica for read operations
+
+        Returns:
+            Model instance or None if not found
+        """
+        if field not in self.model_class.model_fields:
             raise ValueError(f"Field {field} not found in model {self.model_class}")
 
-        # Quote value if it's a string, otherwise use the value as is
-        if isinstance(value, str):
-            value = f"'{value}'"
+        field_attr = getattr(self.model_class, field)
 
-        query = f"SELECT * FROM {self.table_name} WHERE {field} = {value}"
-        if not case_sensitive:
-            query = f"SELECT * FROM {self.table_name} WHERE string::lowercase({field}) = {value}"
+        if case_sensitive:
+            stmt = select(self.model_class).where(field_attr == value)
+        else:
+            # For case-insensitive search, use ILIKE for strings
+            if isinstance(value, str):
+                from sqlalchemy import func
 
-        self.logger.debug(f"Query: {query}")
+                stmt = select(self.model_class).where(func.lower(field_attr) == func.lower(value))
+            else:
+                stmt = select(self.model_class).where(field_attr == value)
 
-        async with self.surreal_manager.get_db() as db:
-            result = await db.query(query)
+        self.logger.debug(f"Query: {stmt}")
+
+        async def _execute(sess: AsyncSession):
+            result = await sess.execute(stmt)
+            return result.scalar_one_or_none()
+
+        result = await self._with_session(_execute, session, read_only=read_only)
         self.logger.debug(f"Result: {result}")
+        return result
 
-        if not result:
-            self.logger.debug("No result found")
-            return None
+    async def get_by_id(
+        self, id: UUID | str, session: AsyncSession | None = None, read_only: bool = True
+    ) -> T | None:
+        """
+        Get a model by ID.
 
-        self.logger.debug(f"Result found: {result[0]}")
-        return self.model_class(**result[0])
+        Args:
+            id: UUID or string UUID
+            session: Optional database session
+            read_only: If True and session is None, use read replica for read operations
 
-    async def get_by_id(self, id: str | RecordID) -> T | None:
-        self.logger.debug(f"Getting {self.table_name} by id: {id} {type(id)}")
+        Returns:
+            Model instance or None if not found
+        """
+        if isinstance(id, str):
+            id = UUID(id)
 
-        if not isinstance(id, RecordID):
-            id = RecordID.parse(id)
+        self.logger.debug(f"Getting {self.model_class.__name__} by id: {id}")
 
-        async with self.surreal_manager.get_db() as db:
-            result = await db.select(id)
+        async def _execute(sess: AsyncSession):
+            return await sess.get(self.model_class, id)
+
+        result = await self._with_session(_execute, session, read_only=read_only)
         self.logger.debug(f"Result: {result}")
-        if not result:
-            self.logger.debug("No result found")
-            return None
+        return result
 
-        self.logger.debug(f"Result found: {result}")
-        return self.model_class(**result)
+    async def get_all(self, session: AsyncSession | None = None, read_only: bool = True) -> list[T]:
+        """
+        Get all models.
 
-    async def get_all(self) -> list[T]:
-        self.logger.debug(f"Getting all {self.table_name}")
+        Args:
+            session: Optional database session
+            read_only: If True and session is None, use read replica for read operations
 
-        async with self.surreal_manager.get_db() as db:
-            result = await db.select(self.table_name)
-        self.logger.debug(f"Result: {result}")
+        Returns:
+            List of model instances
+        """
+        self.logger.debug(f"Getting all {self.model_class.__name__}")
 
-        if not result:
-            self.logger.debug("No result found")
-            return []
+        stmt = select(self.model_class)
 
-        self.logger.debug(f"Result found: {result}")
-        return [self.model_class(**record) for record in result]
+        async def _execute(sess: AsyncSession):
+            result = await sess.execute(stmt)
+            return list(result.scalars().all())
 
-    async def update(self, model: T) -> None:
-        async with self.surreal_manager.get_db() as db:
-            await db.update(model.id, model.model_dump(exclude={"id"}))
-        self.logger.debug(f"Updated {self.table_name} {model.id} {model}")
+        result = await self._with_session(_execute, session, read_only=read_only)
+        self.logger.debug(f"Result: {len(result)} records found")
+        return result
 
-    async def upsert(self, model: T) -> None:
-        async with self.surreal_manager.get_db() as db:
-            id = model.id
-            data = model.model_dump(exclude={"id"})
-            result = await db.upsert(id, data)
+    async def create(self, model: T, session: AsyncSession | None = None) -> T:
+        """
+        Create a new model.
 
-        if not result:
-            self.logger.debug(f"Failed to upsert {self.table_name} {model.id} {model}")
-            return
+        Args:
+            model: Model instance to create
+            session: Optional database session
 
-        self.logger.debug(f"Upserted {self.table_name} {model.id} {model}")
-        return self.model_class(**result)
+        Returns:
+            Created model instance
+        """
 
-    async def delete(self, id: str | int | RecordID) -> None:
-        if not isinstance(id, RecordID):
-            id = RecordID.parse(id)
+        async def _execute(sess: AsyncSession):
+            sess.add(model)
+            await sess.commit()
+            await sess.refresh(model)
+            return model
 
-        async with self.surreal_manager.get_db() as db:
-            await db.delete(id)
-        self.logger.debug(f"Deleted {self.table_name} {id}")
+        result = await self._with_session(_execute, session)
+        self.logger.debug(f"Created {self.model_class.__name__} {result.id}")
+        return result
+
+    async def update(self, model: T, session: AsyncSession | None = None) -> T:
+        """
+        Update an existing model.
+
+        Args:
+            model: Model instance to update
+            session: Optional database session
+
+        Returns:
+            Updated model instance
+        """
+
+        async def _execute(sess: AsyncSession):
+            # Update updated_at timestamp
+            from datetime import datetime
+
+            model.updated_at = datetime.now(UTC)
+
+            sess.add(model)
+            await sess.commit()
+            await sess.refresh(model)
+            return model
+
+        result = await self._with_session(_execute, session)
+        self.logger.debug(f"Updated {self.model_class.__name__} {result.id}")
+        return result
+
+    async def upsert(self, model: T, session: AsyncSession | None = None) -> T:
+        """
+        Insert or update a model (upsert).
+
+        Args:
+            model: Model instance to upsert
+            session: Optional database session
+
+        Returns:
+            Upserted model instance
+        """
+        if model.id:
+            existing = await self.get_by_id(model.id, session=session)
+            if existing:
+                # Update existing
+                for key, value in model.model_dump(exclude={"id", "created_at"}).items():
+                    setattr(existing, key, value)
+                return await self.update(existing, session=session)
+
+        # Create new
+        return await self.create(model, session=session)
+
+    async def delete(self, id: UUID | str, session: AsyncSession | None = None) -> None:
+        """
+        Delete a model by ID.
+
+        Args:
+            id: UUID or string UUID
+            session: Optional database session
+        """
+        if isinstance(id, str):
+            id = UUID(id)
+
+        async def _execute(sess: AsyncSession):
+            model = await sess.get(self.model_class, id)
+            if model:
+                await sess.delete(model)
+                await sess.commit()
+                self.logger.debug(f"Deleted {self.model_class.__name__} {id}")
+            else:
+                self.logger.warning(f"{self.model_class.__name__} {id} not found for deletion")
+
+        await self._with_session(_execute, session)

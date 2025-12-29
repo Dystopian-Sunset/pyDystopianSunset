@@ -1,27 +1,25 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from ds_common.repository.player import PlayerRepository
-from ds_discord_bot.surreal_manager import SurrealManager
+from ds_discord_bot.postgres_manager import PostgresManager
 
 
 class Moderation(commands.Cog):
-    def __init__(self, bot: commands.Bot, surreal_manager: SurrealManager):
+    def __init__(self, bot: commands.Bot, postgres_manager: PostgresManager):
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.bot: commands.Bot = bot
-        self.surreal_manager: SurrealManager = surreal_manager
+        self.postgres_manager: PostgresManager = postgres_manager
 
     @commands.Cog.listener()
     async def on_ready(self):
         self.logger.info("Moderation cog loaded")
 
-    moderation = app_commands.Group(
-        name="moderation", description="Moderation commands"
-    )
+    moderation = app_commands.Group(name="moderation", description="Moderation commands")
 
     @moderation.command(name="kick", description="Kick a user")
     @app_commands.describe(user="The user to kick")
@@ -33,9 +31,7 @@ class Moderation(commands.Cog):
             await user.kick()
             await interaction.followup.send(f"Kicked {user}")
         except discord.Forbidden:
-            await interaction.followup.send(
-                "You do not have permission to kick this user."
-            )
+            await interaction.followup.send("You do not have permission to kick this user.")
 
     @moderation.command(name="ban", description="Ban a user")
     @app_commands.describe(user="The user to ban")
@@ -45,18 +41,16 @@ class Moderation(commands.Cog):
 
         try:
             await user.ban()
-            player_repo = PlayerRepository(self.surreal_manager)
+            player_repo = PlayerRepository(self.postgres_manager)
             player = await player_repo.get_by_id(user.id)
             if player:
                 player.is_active = False
-                player.last_active_at = datetime.now(timezone.utc)
+                player.last_active_at = datetime.now(UTC)
                 await player_repo.upsert(player)
                 self.logger.debug("Deactivated player %s", player)
             await interaction.followup.send(f"Banned {user}")
         except discord.Forbidden:
-            await interaction.followup.send(
-                "You do not have permission to ban this user."
-            )
+            await interaction.followup.send("You do not have permission to ban this user.")
 
     @moderation.command(name="unban", description="Unban a user")
     @app_commands.describe(user="The user to unban")
@@ -66,18 +60,16 @@ class Moderation(commands.Cog):
 
         try:
             await user.unban()
-            player_repo = PlayerRepository(self.surreal_manager)
+            player_repo = PlayerRepository(self.postgres_manager)
             player = await player_repo.get_by_id(user.id)
             if player:
                 player.is_active = True
-                player.last_active_at = datetime.now(timezone.utc)
+                player.last_active_at = datetime.now(UTC)
                 await player_repo.upsert(player)
                 self.logger.debug("Activated player %s", player)
             await interaction.followup.send(f"Unbanned {user}")
         except discord.Forbidden:
-            await interaction.followup.send(
-                "You do not have permission to unban this user."
-            )
+            await interaction.followup.send("You do not have permission to unban this user.")
 
     @moderation.command(name="help", description="Get help with moderation commands")
     async def help(self, interaction: discord.Interaction):
@@ -98,9 +90,7 @@ class Moderation(commands.Cog):
                 if command.name == "help":
                     continue
 
-                help_text += (
-                    f"`/{command.parent.name} {command.name}` - {command.description}\n"
-                )
+                help_text += f"`/{command.parent.name} {command.name}` - {command.description}\n"
 
         embed = discord.Embed(
             title="Moderation command help",
@@ -113,4 +103,4 @@ class Moderation(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     bot.logger.info("Loading moderation cog...")
-    await bot.add_cog(Moderation(bot=bot, surreal_manager=bot.surreal_manager))
+    await bot.add_cog(Moderation(bot=bot, postgres_manager=bot.postgres_manager))

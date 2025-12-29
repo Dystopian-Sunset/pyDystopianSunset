@@ -1,11 +1,13 @@
-from typing import Iterable
+from collections.abc import Iterable
 
 
 async def send_large_message(
     message: str,
     chunk_length: int = 2000,
-    split_at: set[str] = {".", "!", "?"},
+    split_at: set[str] | None = None,
 ) -> Iterable[str]:
+    if split_at is None:
+        split_at = {".", "!", "?"}
     """
     Splits a message into chunks of 2000 characters or less, preferring to split at sentence boundaries.
     """

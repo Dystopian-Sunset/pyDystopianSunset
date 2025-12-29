@@ -1,11 +1,32 @@
-from pydantic import ConfigDict
+from typing import TYPE_CHECKING
 
-from ds_common.models.surreal_model import BaseSurrealModel
+from sqlalchemy import JSON
+from sqlmodel import Column, Field, Relationship
+
+from ds_common.models.base_model import BaseSQLModel
+from ds_common.models.junction_tables import CharacterQuest
+
+if TYPE_CHECKING:
+    from ds_common.models.character import Character
 
 
-class Quest(BaseSurrealModel):
-    name: str
-    description: str
-    tasks: list[str]
+class Quest(BaseSQLModel, table=True):
+    """
+    Quest model
+    """
 
-    model_config = ConfigDict(table_name="quest")
+    __tablename__ = "quests"
+
+    name: str = Field(description="Quest name")
+    description: str = Field(description="Quest description")
+    tasks: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON),
+        description="Quest tasks",
+    )
+
+    # Relationships
+    characters: list["Character"] = Relationship(
+        back_populates="quests",
+        link_model=CharacterQuest,
+    )

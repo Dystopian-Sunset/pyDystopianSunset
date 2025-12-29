@@ -1,15 +1,26 @@
-from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from pydantic import ConfigDict, Field
+from sqlalchemy import BigInteger
+from sqlmodel import Column, Field, Relationship
 
-from ds_common.models.surreal_model import BaseSurrealModel
+from ds_common.models.base_model import BaseSQLModel
+from ds_common.models.junction_tables import (
+    GameSessionCharacter,
+    GameSessionPlayer,
+)
 from ds_common.name_generator import NameGenerator
 
+if TYPE_CHECKING:
+    from ds_common.models.character import Character
+    from ds_common.models.player import Player
 
-class GameSession(BaseSurrealModel):
+
+class GameSession(BaseSQLModel, table=True):
     """
     Game session model
     """
+
+    __tablename__ = "game_sessions"
 
     name: str = Field(
         default_factory=NameGenerator.generate_cyberpunk_channel_name,
@@ -17,21 +28,20 @@ class GameSession(BaseSurrealModel):
     )
     channel_id: int | None = Field(
         default=None,
-        description="ID of the channel where the game session is taking place",
+        sa_column=Column(BigInteger()),
+        description="ID of the Discord channel where the game session is taking place (64-bit integer)",
     )
-    max_players: int = Field(
-        default=4, description="Max number of players allowed in the game"
-    )
+    max_players: int = Field(default=4, description="Max number of players allowed in the game")
     is_open: bool = Field(
         default=False, description="True if the game is open for all players to join"
     )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        description="When the game session was created",
-    )
-    last_active_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        description="When the game session was last active",
-    )
 
-    model_config = ConfigDict(table_name="game_session")
+    # Relationships
+    players: list["Player"] = Relationship(
+        back_populates="game_sessions",
+        link_model=GameSessionPlayer,
+    )
+    characters: list["Character"] = Relationship(
+        back_populates="game_sessions",
+        link_model=GameSessionCharacter,
+    )

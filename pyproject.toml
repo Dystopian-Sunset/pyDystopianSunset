@@ -5,16 +5,32 @@ description = "Discord bot for Dystopia Sunset"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "aiofiles>=24.1.0",
-    "discord-py[voice]>=2.5.2",
+    "aiofiles>=25.1.0",
+    "discord-py[voice]>=2.6.4",
     "dotenv>=0.9.9",
-    "pydantic>=2.11.4",
-    "pydantic-ai>=0.2.6",
-    "surrealdb",
+    "pydantic>=2.12.5",
+    "pydantic-ai>=1.39.0",
+    "asyncpg>=0.31",
+    "pgvector>=0.4",
+    "sqlmodel>=0.0.14",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "alembic>=1.13.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "prometheus-client>=0.23.1",
+    "flask>=3.0.0",
 ]
 
-[tool.uv.sources]
-surrealdb = { git = "https://github.com/surrealdb/surrealdb.py.git" }
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "bandit>=1.7.10",
+    "safety>=3.3.1",
+    "watchfiles>=0.21.0",
+]
 
 [project.scripts]
 bot = "ds_discord_bot:main"
@@ -22,3 +38,97 @@ bot = "ds_discord_bot:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PIE", # flake8-pie
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["ds_common", "ds_discord_bot"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = [
+    "discord.*",
+    "asyncpg.*",
+    "pgvector.*",
+    "sqlmodel.*",
+    "pydantic_ai.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]

@@ -1,0 +1,23 @@
+# Prometheus configuration for Dystopian Sunset Discord Bot
+global:
+  scrape_interval: 15s  # How frequently to scrape targets
+  evaluation_interval: 15s  # How frequently to evaluate rules
+  external_labels:
+    cluster: 'dystopian-sunset'
+    environment: 'development'
+
+# Scrape configurations
+scrape_configs:
+  # Scrape the Discord bot metrics endpoint
+  - job_name: 'dystopian-sunset-bot'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: '/metrics'
+    # Prometheus uses host network mode, so it can access localhost:8000 directly
+    # This is ideal for development where the bot runs on the host
+    static_configs:
+      - targets: ['localhost:8000']
+        labels:
+          service: 'discord-bot'
+          instance: 'bot-dev'
+

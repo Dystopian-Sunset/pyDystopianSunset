@@ -1,5 +1,7 @@
 from discord import Color, Embed
 
+from ds_common.combat.display import format_resource_display
+from ds_common.config_bot import get_config
 from ds_common.models.character import Character
 from ds_common.models.character_class import CharacterClass
 
@@ -13,15 +15,28 @@ class CharacterWidget(Embed):
     ):
         super().__init__(color=Color.dark_blue() if is_active else Color.greyple())
 
-        heading = (
-            f"{character.name} | lvl {character.level} | {character_class.name} | [N/A]"
-            + (" (⭐)" if is_active else "")
+        heading = f"{character.name} | lvl {character.level} | {character_class.name} | [N/A]" + (
+            " (⭐)" if is_active else ""
         )
-        vitals = f"Health: {character.stats['HP'] if 'HP' in character.stats else 0}\nEnergy: {character.stats['ENG'] if 'ENG' in character.stats else 0}\nExp: {character.exp}"
-        stats = f"STR: {character.stats['STR'] if 'STR' in character.stats else 0}, DEX: {character.stats['DEX'] if 'DEX' in character.stats else 0}, INT: {character.stats['INT'] if 'INT' in character.stats else 0}\nCHA: {character.stats['CHA'] if 'CHA' in character.stats else 0}, PER: {character.stats['PER'] if 'PER' in character.stats else 0}, LUK: {character.stats['LUK'] if 'LUK' in character.stats else 0}"
+
+        # Format resources using the display utility (converts floats to ints)
+        resources = format_resource_display(character)
+        vitals = f"Health: {resources['current_health']}\nEnergy: {resources['current_tech_power']}\nExp: {character.exp}"
+        stats = f"STR: {character.stats.get('STR', 0)}, DEX: {character.stats.get('DEX', 0)}, INT: {character.stats.get('INT', 0)}\nCHA: {character.stats.get('CHA', 0)}, PER: {character.stats.get('PER', 0)}, LUK: {character.stats.get('LUK', 0)}"
         fame = f"Renown: {character.renown}\nShadow Level: {character.shadow_level}"
         self.set_author(name=heading, icon_url="")
         self.add_field(name="Vitals", value=vitals, inline=True)
         self.add_field(name="Stats", value=stats, inline=True)
         self.add_field(name="Fame", value=fame)
-        self.set_footer(text="Quillian Undercity: Shadows of the Syndicate")
+        
+        # Use configurable game name and subtitle
+        config = get_config()
+        game_name = config.game_name
+        game_subtitle = config.game_subtitle
+        
+        if game_subtitle:
+            footer_text = f"{game_name}: {game_subtitle}"
+        else:
+            footer_text = game_name
+        
+        self.set_footer(text=footer_text)

@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 def clean_channel_name(name: str) -> str:
     # If channel name starts with non-alphanumeric or - characters, remove them
-    name = re.sub(r"^[^a-zA-Z0-9-]+-", "", name)
-
-    return name
+    return re.sub(r"^[^a-zA-Z0-9-]+-", "", name)
 
 
 async def find_category(
@@ -72,9 +70,8 @@ async def create_text_channel(
 
             logger.debug(f"Created text channel: {name}")
             return channel
-        else:
-            logger.debug(f"Text channel already exists: {name}")
-            return None
+        logger.debug(f"Text channel already exists: {name}")
+        return None
 
     logger.debug("Category not found, cannot create channel")
     return None
@@ -97,9 +94,8 @@ async def create_voice_channel(
 
             logger.debug(f"Created voice channel: {name}")
             return channel
-        else:
-            logger.debug(f"Voice channel already exists: {name}")
-            return None
+        logger.debug(f"Voice channel already exists: {name}")
+        return None
 
     logger.debug("Category not found, cannot create channel")
     return None
@@ -135,13 +131,11 @@ async def move_member_to_voice_channel(
         return
 
     if member.voice:
-        if source_filter:
-            if member.voice.channel != await find_channel(bot, source_filter):
-                return
+        if source_filter and member.voice.channel != await find_channel(bot, source_filter):
+            return
 
-        if channel:
-            if member.voice.channel != channel:
-                return
+        if channel and member.voice.channel != channel:
+            return
 
         logger.debug(
             f"Moving member {member} from voice channel {member.voice.channel} to {channel}"
@@ -150,7 +144,7 @@ async def move_member_to_voice_channel(
 
 
 async def send_dm(
-    bot: commands.Bot,
+    bot: commands.Bot,  # noqa: ARG001
     member: discord.Member | discord.User,
     message: str,
 ):

@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   # discord-bot:
   #   build:
@@ -23,21 +21,81 @@ services:
   #   #     - action: rebuild
   #   #       path: ./pyproject.toml
           
-  surrealdb: # NewSQL Database - https://surrealdb.com/docs/surrealdb/installation/running/docker
-    image: docker.io/surrealdb/surrealdb
+  postgres: # PostgreSQL with pgvector extension
+    image: pgvector/pgvector:pg16
     restart: on-failure
     ports:
-      - "8000:8000"
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DS_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${DS_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${DS_POSTGRES_DATABASE:-game}
     volumes:
-      - surrealdb:/surrealdb
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DS_POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey: # Valkey (Redis-compatible) for embedding cache
+    image: valkey/valkey:7.2-alpine
+    restart: on-failure
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey:/data
+    command: ["valkey-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prometheus: # Prometheus metrics server
+    image: prom/prometheus:latest
+    restart: on-failure
+    network_mode: "host"  # Use host network to access localhost:8000 directly
+    volumes:
+      - ./Docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
     command:
-      - start
-      - --user
-      - root
-      - --pass
-      - root
-      - --log
-      - debug
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.listen-address=0.0.0.0:9090'  # Explicitly bind to all interfaces
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  grafana: # Grafana dashboards
+    image: grafana/grafana:latest
+    restart: on-failure
+    network_mode: "host"  # Use host network to access localhost:9090 directly
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./Docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
-  surrealdb:
+  postgres:
+  valkey:
+  prometheus:
+  grafana:
